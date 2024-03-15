@@ -13227,6 +13227,7 @@ Value *CodeGenFunction::EmitBPFBuiltinExpr(unsigned BuiltinID,
                                            const CallExpr *E) {
   assert((BuiltinID == BPF::BI__builtin_preserve_field_info ||
           BuiltinID == BPF::BI__builtin_btf_type_id ||
+          BuiltinID == BPF::BI__builtin_may_goto ||
           BuiltinID == BPF::BI__builtin_preserve_type_info ||
           BuiltinID == BPF::BI__builtin_preserve_enum_value) &&
          "unexpected BPF builtin");
@@ -13326,6 +13327,16 @@ Value *CodeGenFunction::EmitBPFBuiltinExpr(unsigned BuiltinID,
     CallInst *Fn =
         Builder.CreateCall(IntrinsicFn, {SeqNumVal, EnumStrVal, FlagValue});
     Fn->setMetadata(LLVMContext::MD_preserve_access_index, DbgInfo);
+    return Fn;
+  }
+  case BPF::BI__builtin_may_goto: {
+    auto *LabelExpr = dyn_cast<AddrLabelExpr>(E->getArg(0));
+    Value *V = GetAddrOfLabel(LabelExpr->getLabel());
+    Value *Label = Builder.CreateBitCast(V, ConvertType(LabelExpr->getType()));
+    llvm::Function *IntrinsicFn = llvm::Intrinsic::getDeclaration(
+        &CGM.getModule(), llvm::Intrinsic::bpf_may_goto, {Label->getType()});
+    CallInst *Fn =
+        Builder.CreateCall(IntrinsicFn, {Label});
     return Fn;
   }
   }

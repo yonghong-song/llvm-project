@@ -56,7 +56,11 @@ public:
   bool runOnMachineFunction(MachineFunction &MF) override {
     // Reset the subtarget each time through.
     Subtarget = &MF.getSubtarget<BPFSubtarget>();
-    return SelectionDAGISel::runOnMachineFunction(MF);
+    bool ret = SelectionDAGISel::runOnMachineFunction(MF);
+    // Post process to correct JCOND insn encoding
+    if (ret)
+      PostprocessJCOND(MF);
+    return ret;
   }
 
   void PreprocessISelDAG() override;
@@ -78,6 +82,7 @@ private:
   // Node preprocessing cases
   void PreprocessLoad(SDNode *Node, SelectionDAG::allnodes_iterator &I);
   void PreprocessTrunc(SDNode *Node, SelectionDAG::allnodes_iterator &I);
+  void PostprocessJCOND(MachineFunction &MF);
 
   // Find constants from a constant structure
   typedef std::vector<unsigned char> val_vec_type;
@@ -213,6 +218,23 @@ void BPFDAGToDAGISel::Select(SDNode *Node) {
     break;
   }
 
+  case ISD::INTRINSIC_VOID: {
+    unsigned IntNo = Node->getConstantOperandVal(1);
+    switch (IntNo) {
+    case Intrinsic::bpf_may_goto: {
+      SDValue Chain = Node->getOperand(0);
+      SDValue BlockAddr = Node->getOperand(2);
+      unsigned Opc = BPF::JCOND;
+      MachineSDNode *Target =
+        CurDAG->getMachineNode(Opc, SDLoc(Node), MVT::Other,
+                               {BlockAddr, Chain});
+      ReplaceNode(Node, Target);
+      return;
+    }
+    }
+    break;
+  }
+
   case ISD::FrameIndex: {
     int FI = cast<FrameIndexSDNode>(Node)->getIndex();
     EVT VT = Node->getValueType(0);
@@ -325,6 +347,59 @@ void BPFDAGToDAGISel::PreprocessISelDAG() {
     else if (Opcode == ISD::AND)
       PreprocessTrunc(Node, I);
   }
+}
+
+void BPFDAGToDAGISel::PostprocessJCOND(MachineFunction &MF) {
+  // Iterate all insns and change 'JCOND <blockaddress>' to
+  // 'JCOND '<basicblock>'.
+  const TargetInstrInfo *TTI = MF.getSubtarget().getInstrInfo();
+  MachineRegisterInfo *MRI = &MF.getRegInfo();
+
+  DenseMap<const BasicBlock *, MachineBasicBlock *> BBMap;
+  DenseMap<MachineInstr *, MachineBasicBlock *> JCONDMap;
+
+  // Gather information about Basicblock, LD_Imm64 and JCOND.
+  for (MachineBasicBlock &MBB : MF)
+    BBMap[MBB.getBasicBlock()] = &MBB;
+
+  for (MachineBasicBlock &MBB : MF) {
+    for (MachineInstr &MI : MBB) {
+      if (MI.getOpcode() != BPF::LD_imm64)
+        continue;
+
+      const MachineOperand &Op1 = MI.getOperand(1);
+      if (!Op1.isBlockAddress())
+        continue;
+      const BlockAddress *BAddr = Op1.getBlockAddress();
+      if (!BAddr)
+        continue;
+      const Register &Reg = MI.getOperand(0).getReg();
+      for (MachineOperand &MO : MRI->use_operands(Reg)) {
+        MachineInstr *Inst = MO.getParent();
+        if (Inst->getOpcode() != BPF::JCOND)
+          continue;
+        JCONDMap[Inst] = BBMap[BAddr->getBasicBlock()];
+      }
+    }
+  }
+
+  // Rewrite JCOND insns.
+  MachineInstr *ToErase = nullptr;
+  for (MachineBasicBlock &MBB : MF) {
+    for (MachineInstr &MI : MBB) {
+      if (ToErase) {
+        ToErase->eraseFromParent();
+        ToErase = nullptr;
+      }
+      if (MI.getOpcode() != BPF::JCOND)
+        continue;
+      BuildMI(MBB, MI, MI.getDebugLoc(), TTI->get(BPF::JCOND))
+          .addMBB(JCONDMap[&MI]);
+      ToErase = &MI;
+    }
+  }
+
+  return;
 }
 
 bool BPFDAGToDAGISel::getConstantFieldValue(const GlobalAddressSDNode *Node,

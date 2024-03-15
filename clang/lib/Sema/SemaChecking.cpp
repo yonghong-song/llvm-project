@@ -3871,9 +3871,24 @@ bool Sema::CheckBPFBuiltinFunctionCall(unsigned BuiltinID,
                                        CallExpr *TheCall) {
   assert((BuiltinID == BPF::BI__builtin_preserve_field_info ||
           BuiltinID == BPF::BI__builtin_btf_type_id ||
+          BuiltinID == BPF::BI__builtin_may_goto ||
           BuiltinID == BPF::BI__builtin_preserve_type_info ||
           BuiltinID == BPF::BI__builtin_preserve_enum_value) &&
          "unexpected BPF builtin");
+
+  if (BuiltinID == BPF::BI__builtin_may_goto) {
+    if (checkArgCount(*this, TheCall, 1))
+      return true;
+
+    Expr *Arg0 = TheCall->getArg(0);
+    if (!dyn_cast<AddrLabelExpr>(Arg0)) {
+      Diag(Arg0->getBeginLoc(), diag::err_may_goto_not_label) << 1 << Arg0->getSourceRange();
+      return true;
+    }
+
+    TheCall->setType(Context.VoidTy);
+    return false;
+  }
 
   if (checkArgCount(*this, TheCall, 2))
     return true;

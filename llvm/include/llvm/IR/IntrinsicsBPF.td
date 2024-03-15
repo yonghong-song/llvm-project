@@ -76,4 +76,6 @@ let TargetPrefix = "bpf" in {  // All intrinsics start with "llvm.bpf."
                          ImmArg    <ArgIndex<5>>, // alignment
                          ImmArg    <ArgIndex<6>>, // inbounds
                         ]>;
+  def int_bpf_may_goto: ClangBuiltin<"__builtin_bpf_may_goto">,
+              Intrinsic<[], [llvm_any_ty], []>;
 }

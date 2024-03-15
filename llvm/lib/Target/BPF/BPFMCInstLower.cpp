@@ -77,6 +77,9 @@ void BPFMCInstLower::Lower(const MachineInstr *MI, MCInst &OutMI) const {
     case MachineOperand::MO_ConstantPoolIndex:
       MCOp = LowerSymbolOperand(MO, Printer.GetCPISymbol(MO.getIndex()));
       break;
+    case MachineOperand::MO_BlockAddress:
+      MCOp = LowerSymbolOperand(MO, Printer.GetBlockAddressSymbol(MO.getBlockAddress()));
+      break;
     }
 
     OutMI.addOperand(MCOp);
