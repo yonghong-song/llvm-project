@@ -35,3 +35,10 @@ def PreserveEnumValue : TargetBuiltin {
   let Attributes = [CustomTypeChecking];
   let Prototype = "long int(...)";
 }
+
+// Conditional branch: may_goto
+def MayGoto : TargetBuiltin {
+  let Spellings = ["__builtin_may_goto"];
+  let Attributes = [CustomTypeChecking];
+  let Prototype = "void (...)";
+}

@@ -12,9 +12,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "BPF.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/IntrinsicsBPF.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/Type.h"
@@ -32,6 +34,28 @@ static bool BPFIRPeepholeImpl(Function &F) {
   LLVM_DEBUG(dbgs() << "******** BPF IR Peephole ********\n");
 
   bool Changed = false;
+  bool PrevMayGoto = false;
+
+  // If we have __builtin_bpf_may_goto() function, split the basic block
+  // with __builtin_bpf_may_goto() into two basic blocks so we can then
+  // change __builtin_bpf_may_goto() to callbr insn.
+  for (auto &BB : F) {
+    for (auto &I : BB) {
+      if (PrevMayGoto) {
+        BB.splitBasicBlock(&I);
+        PrevMayGoto = false;
+        Changed = true;
+        // HACK, will fix later.
+        break;
+      }
+      if (auto *Call = dyn_cast<CallInst>(&I)) {
+        const auto *GV = dyn_cast<GlobalValue>(Call->getCalledOperand());
+        if (GV && GV->getName().starts_with("llvm.bpf.may.goto"))
+          PrevMayGoto = true;
+      }
+    }
+  }
+
   Instruction *ToErase = nullptr;
   for (auto &BB : F) {
     for (auto &I : BB) {
@@ -56,6 +80,51 @@ static bool BPFIRPeepholeImpl(Function &F) {
         ToErase->eraseFromParent();
         ToErase = nullptr;
       }
+
+      if (auto *Call = dyn_cast<CallInst>(&I)) {
+        const auto *GV = dyn_cast<GlobalValue>(Call->getCalledOperand());
+        if (GV && GV->getName().starts_with("llvm.bpf.may.goto")) {
+          const BlockAddress *BA = dyn_cast<BlockAddress>(Call->getArgOperand(0));
+          if (!BA)
+            continue;
+          BasicBlock *BB2 = BA->getBasicBlock();
+
+          // From early basic block splitting, we know that
+          // __builtin_bpf_may_goto() must be last secondary insn.
+          // The last insn will be an unconditional jump to another
+          // basic block.
+
+          // Replace llvm.bpf.may.goto with callbr insn.
+          std::vector<Type *> ArgTypes;
+          Type *ResultType = Type::getVoidTy(F.getParent()->getContext());
+          FunctionType *FTy = FunctionType::get(ResultType, ArgTypes, false);
+
+          std::string AsmString = "may_goto ${0:l}";
+          std::string Constraints = "!i";
+          bool HasSideEffect = true;
+          llvm::InlineAsm::AsmDialect AsmDialect = InlineAsm::AD_ATT;
+          bool HasUnwindClobber = false;
+          InlineAsm *IA = llvm::InlineAsm::get(FTy, AsmString, Constraints, HasSideEffect, false, AsmDialect, HasUnwindClobber);
+
+          std::vector<Value *> Args;
+          BasicBlock *DefaultDest = BB.getSingleSuccessor();;
+          SmallVector<BasicBlock *, 4> IndirectDests;
+
+          IndirectDests.push_back(BB2);
+          CallBrInst *CBI = CallBrInst::Create(IA, DefaultDest, IndirectDests, Args);
+
+          CBI->insertBefore(Call);
+
+          // Remove __builtin_bpf_may_goto() insn and the terminator as well.
+          // Also fix control flow correctly since here CallBrInst here will
+          // have two targets.
+          Call->eraseFromParent();
+          BB.getTerminator()->eraseFromParent();
+
+          // HACK: will fix later
+	  return true;
+       }
+     }
 
       if (auto *II = dyn_cast<IntrinsicInst>(&I)) {
         if (II->getIntrinsicID() != Intrinsic::stacksave)
