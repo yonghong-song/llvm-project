@@ -741,7 +741,37 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
   // Start by computing a new prototype for the function, which is the same as
   // the old function, but has fewer arguments and a different return type.
   FunctionType *FTy = F->getFunctionType();
+  DISubprogram *SP = F->getSubprogram();
   std::vector<Type *> Params;
+  std::vector<llvm::Metadata *> NewDIParams;
+  DITypeRefArray OldDIParams;
+  bool BigStructArg = false;
+
+  // Skip detailed arguments if any of original arguments is a struct
+  // with size more than 8 bytes (assuming 64bit arch)
+  if (SP) {
+    OldDIParams = SP->getType()->getTypeArray();
+    for (unsigned i = 1, N = OldDIParams.size(); i < N; ++i) {
+      DIType *Ty = OldDIParams[i];
+      // variable arguments
+      if (!Ty)
+        break;
+      while (auto *DTy = dyn_cast<DIDerivedType>(Ty)) {
+        if (DTy->getTag() == dwarf::DW_TAG_typedef ||
+            DTy->getTag() == dwarf::DW_TAG_const_type ||
+            DTy->getTag() == dwarf::DW_TAG_volatile_type ||
+            DTy->getTag() == dwarf::DW_TAG_restrict_type)
+          Ty = DTy->getBaseType();
+        else
+          break;
+      }
+      // argument > 64bit size, skip newer argument type list.
+      if (Ty->getSizeInBits() > 64) {
+        BigStructArg = true;
+        break;
+      }
+    }
+  }
 
   // Keep track of if we have a live 'returned' argument
   bool HasLiveReturnedArg = false;
@@ -757,6 +787,8 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
   // a new set of parameter attributes to correspond. Skip the first parameter
   // attribute, since that belongs to the return value.
   unsigned ArgI = 0;
+  bool CurrFuncArgEliminated = false;
+  bool CurrFuncRetEliminated = false;
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
        ++I, ++ArgI) {
     RetOrArg Arg = createArg(F, ArgI);
@@ -765,8 +797,14 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
       ArgAlive[ArgI] = true;
       ArgAttrVec.push_back(PAL.getParamAttrs(ArgI));
       HasLiveReturnedArg |= PAL.hasParamAttr(ArgI, Attribute::Returned);
+      // Actual argument may already have flattened like 16-byte struct.
+      // Need to be careful here.
+      if (SP && !BigStructArg)
+          NewDIParams.push_back(OldDIParams[ArgI + 1]);
     } else {
       ++NumArgumentsEliminated;
+      CurrFuncArgEliminated = true;
+      fprintf(stderr, "NumArgumentsEliminated: func %s\n", F->getName().str().c_str());
 
       ORE.emit([&]() {
         return OptimizationRemark(DEBUG_TYPE, "ArgumentRemoved", F)
@@ -818,6 +856,8 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
         NewRetIdxs[Ri] = RetTypes.size() - 1;
       } else {
         ++NumRetValsEliminated;
+        CurrFuncRetEliminated = true;
+        fprintf(stderr, "NumArgumentsEliminated: func %s\n", F->getName().str().c_str());
 
         ORE.emit([&]() {
           return OptimizationRemark(DEBUG_TYPE, "ReturnValueRemoved", F)
@@ -1098,7 +1138,22 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
   // DW_CC_nocall to DISubroutineType to inform debugger that it may not be safe
   // to call this function or try to interpret the return value.
   if (NFTy != FTy && NF->getSubprogram()) {
-    DISubprogram *SP = NF->getSubprogram();
+    SP = NF->getSubprogram();
+
+    if (CurrFuncArgEliminated) {
+      SP->setArgChanged();
+
+      if (!BigStructArg) {
+        Module &M = *F->getParent();
+        DICompileUnit *CU = *M.debug_compile_units_begin();
+        DIBuilder DB(M, /*AllowUnresolved*/ false, CU);
+        SP->ChangedArgTypes = DB.getOrCreateTypeArray(ArrayRef(NewDIParams));
+        DB.finalize();
+      }
+    }
+    if (CurrFuncRetEliminated)
+      SP->setRetvalRemoved();
+
     auto Temp = SP->getType()->cloneWithCC(llvm::dwarf::DW_CC_nocall);
     SP->replaceType(MDNode::replaceWithPermanent(std::move(Temp)));
   }

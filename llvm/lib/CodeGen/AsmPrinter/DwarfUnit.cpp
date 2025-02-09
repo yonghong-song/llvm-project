@@ -656,6 +656,20 @@ DIE *DwarfUnit::getOrCreateTypeDIE(const MDNode *TyNode) {
       ->createTypeDIE(Context, *ContextDIE, Ty);
 }
 
+void DwarfUnit::updateLLVMChangedArgs(DIE &ScopeDIE, const DISubprogram *SP) {
+  if (!SP->getArgChanged())
+    return;
+
+  auto *LocalDie = DIE::get(DIEValueAllocator, dwarf::DW_TAG_LLVM_changed_args);
+
+  for (unsigned i = 0, N = SP->ChangedArgTypes.size(); i < N; ++i) {
+    DIE &Param = createAndAddDIE(dwarf::DW_TAG_formal_parameter, *LocalDie);
+    addType(Param, SP->ChangedArgTypes[i]);
+  }
+
+  ScopeDIE.addChild(LocalDie);
+}
+
 void DwarfUnit::updateAcceleratorTables(const DIScope *Context,
                                         const DIType *Ty, const DIE &TyDIE) {
   if (Ty->getName().empty())
@@ -1329,6 +1343,9 @@ void DwarfUnit::applySubprogramAttributes(const DISubprogram *SP, DIE &SPDie,
 
   if (!SkipSPSourceLocation)
     addSourceLine(SPDie, SP);
+
+  if (SP->getRetvalRemoved())
+    addFlag(SPDie, dwarf::DW_AT_LLVM_func_retval_removed);
 
   // Skip the rest of the attributes under -gmlt to save space.
   if (SkipSPAttributes)
