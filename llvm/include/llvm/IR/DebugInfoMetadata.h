@@ -1756,6 +1756,8 @@ public:
                              unsigned Virtuality = SPFlagNonvirtual,
                              bool IsMainSubprogram = false);
 
+  DITypeRefArray ChangedArgTypes;
+
 private:
   DIFlags Flags;
   DISPFlags SPFlags;
@@ -1911,6 +1913,11 @@ public:
   StringRef getLinkageName() const { return getStringOperand(3); }
   /// Only used by clients of CloneFunction, and only right after the cloning.
   void replaceLinkageName(MDString *LN) { replaceOperandWith(3, LN); }
+
+  void setArgChanged() { SPFlags |= SPFlagArgChanged; }
+  bool getArgChanged() const { return SPFlags & SPFlagArgChanged; }
+  void setRetvalRemoved() { SPFlags |= SPFlagRetvalRemoved; }
+  bool getRetvalRemoved() const { return SPFlags & SPFlagRetvalRemoved; }
 
   DISubroutineType *getType() const {
     return cast_or_null<DISubroutineType>(getRawType());
