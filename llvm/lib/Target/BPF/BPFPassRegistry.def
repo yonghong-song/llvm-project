@@ -18,6 +18,7 @@
 #endif
 FUNCTION_PASS("bpf-aspace-simplify", BPFASpaceCastSimplifyPass())
 FUNCTION_PASS("bpf-ir-peephole", BPFIRPeepholePass())
+FUNCTION_PASS("bpf-check-undef", BPFCheckUndefInFuncPass())
 #undef FUNCTION_PASS
 
 #ifndef FUNCTION_PASS_WITH_PARAMS

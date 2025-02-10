@@ -127,17 +127,20 @@ void BPFTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
       });
   PB.registerPeepholeEPCallback([=](FunctionPassManager &FPM,
                                     OptimizationLevel Level) {
+    FPM.addPass(BPFCheckUndefInFuncPass());
     FPM.addPass(SimplifyCFGPass(SimplifyCFGOptions().hoistCommonInsts(true)));
     FPM.addPass(BPFASpaceCastSimplifyPass());
   });
   PB.registerScalarOptimizerLateEPCallback(
       [=](FunctionPassManager &FPM, OptimizationLevel Level) {
+        FPM.addPass(BPFCheckUndefInFuncPass());
         // Run this after loop unrolling but before
         // SimplifyCFGPass(... .sinkCommonInsts(true))
         FPM.addPass(BPFPreserveStaticOffsetPass(false));
       });
   PB.registerPipelineEarlySimplificationEPCallback(
       [=](ModulePassManager &MPM, OptimizationLevel, ThinOrFullLTOPhase) {
+        MPM.addPass(BPFCheckUndefInModulePass());
         MPM.addPass(BPFAdjustOptPass());
       });
 }

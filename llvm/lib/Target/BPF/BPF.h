@@ -79,6 +79,18 @@ public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
+class BPFCheckUndefInModulePass : public PassInfoMixin<BPFCheckUndefInModulePass> {
+public:
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+};
+
+class BPFCheckUndefInFuncPass : public PassInfoMixin<BPFCheckUndefInFuncPass> {
+public:
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+
+  static bool isRequired() { return true; }
+};
+
 class BPFPreserveStaticOffsetPass
     : public PassInfoMixin<BPFPreserveStaticOffsetPass> {
   bool AllowPartial;
