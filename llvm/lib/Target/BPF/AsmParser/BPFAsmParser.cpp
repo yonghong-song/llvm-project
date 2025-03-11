@@ -236,6 +236,7 @@ public:
         .Case("lock", true)
         .Case("ld_pseudo", true)
         .Case("store_release", true)
+        .Case("unreachable", true)
         .Default(false);
   }
 

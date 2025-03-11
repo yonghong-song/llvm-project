@@ -790,10 +790,24 @@ class RET<string OpcodeStr>
   let BPFClass = BPF_JMP;
 }
 
+class TRAP<string OpcodeStr>
+    : TYPE_ALU_JMP<BPF_EXIT.Value, BPF_K.Value,
+                   (outs),
+                   (ins),
+                   !strconcat(OpcodeStr, ""),
+                   []> {
+  let Inst{31-0} = 1;
+  let BPFClass = BPF_JMP;
+}
+
 let isReturn = 1, isTerminator = 1, hasDelaySlot=0, isBarrier = 1,
     isNotDuplicable = 1 in {
   def RET : RET<"exit">;
 }
+
+let isTrap = 1 in {
+  def UNREACHABLE : TRAP<"unreachable">;
+} // isTerminator = 1
 
 // ADJCALLSTACKDOWN/UP pseudo insns
 let Defs = [R11], Uses = [R11], isCodeGenOnly = 1 in {

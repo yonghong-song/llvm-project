@@ -68,6 +68,8 @@ BPFTargetLowering::BPFTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::BRIND, MVT::Other, Expand);
   setOperationAction(ISD::BRCOND, MVT::Other, Expand);
 
+  setOperationAction(ISD::TRAP, MVT::Other, Legal);
+
   setOperationAction({ISD::GlobalAddress, ISD::ConstantPool}, MVT::i64, Custom);
 
   setOperationAction(ISD::DYNAMIC_STACKALLOC, MVT::i64, Custom);

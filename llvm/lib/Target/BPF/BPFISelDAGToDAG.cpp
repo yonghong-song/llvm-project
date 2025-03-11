@@ -226,6 +226,15 @@ void BPFDAGToDAGISel::Select(SDNode *Node) {
     ReplaceNode(Node, CurDAG->getMachineNode(Opc, SDLoc(Node), VT, TFI));
     return;
   }
+
+  case ISD::TRAP: {
+    MachineSDNode *NewNode;
+    SDLoc DL(Node);
+    NewNode = CurDAG->getMachineNode(BPF::UNREACHABLE, DL, MVT::Other,
+                                     Node->getOperand(0));
+    ReplaceNode(Node, NewNode);
+    return;
+  }
   }
 
   // Select the default instruction
