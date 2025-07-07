@@ -36,6 +36,7 @@
 
 namespace llvm {
 extern cl::opt<bool> EmitJumpTableSizesSection;
+extern cl::opt<bool> EmitUniqueJumpTableSection;
 
 class AddrLabelMap;
 class AsmPrinterHandler;

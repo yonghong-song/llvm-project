@@ -990,17 +990,19 @@ MCSection *TargetLoweringObjectFileELF::getUniqueSectionForFunction(
 }
 
 MCSection *TargetLoweringObjectFileELF::getSectionForJumpTable(
-    const Function &F, const TargetMachine &TM) const {
-  return getSectionForJumpTable(F, TM, /*JTE=*/nullptr);
+    const Function &F, const TargetMachine &TM,
+    bool EmitUniqueSection) const {
+  return getSectionForJumpTable(F, TM, /*JTE=*/nullptr, EmitUniqueSection);
 }
 
 MCSection *TargetLoweringObjectFileELF::getSectionForJumpTable(
     const Function &F, const TargetMachine &TM,
-    const MachineJumpTableEntry *JTE) const {
+    const MachineJumpTableEntry *JTE, bool EmitUniqueSection) const {
   // If the function can be removed, produce a unique section so that
   // the table doesn't prevent the removal.
   const Comdat *C = F.getComdat();
-  bool EmitUniqueSection = TM.getFunctionSections() || C;
+  if (!EmitUniqueSection)
+    EmitUniqueSection = TM.getFunctionSections() || C;
   if (!EmitUniqueSection && !TM.getEnableStaticDataPartitioning())
     return ReadOnlySection;
 
@@ -1878,11 +1880,13 @@ void TargetLoweringObjectFileCOFF::getNameWithPrefix(
 }
 
 MCSection *TargetLoweringObjectFileCOFF::getSectionForJumpTable(
-    const Function &F, const TargetMachine &TM) const {
+    const Function &F, const TargetMachine &TM,
+    bool EmitUniqueSection) const {
   // If the function can be removed, produce a unique section so that
   // the table doesn't prevent the removal.
   const Comdat *C = F.getComdat();
-  bool EmitUniqueSection = TM.getFunctionSections() || C;
+  if (!EmitUniqueSection)
+    EmitUniqueSection = TM.getFunctionSections() || C;
   if (!EmitUniqueSection)
     return ReadOnlySection;
 
@@ -2591,7 +2595,7 @@ MCSection *TargetLoweringObjectFileXCOFF::SelectSectionForGlobal(
 }
 
 MCSection *TargetLoweringObjectFileXCOFF::getSectionForJumpTable(
-    const Function &F, const TargetMachine &TM) const {
+    const Function &F, const TargetMachine &TM, bool EmitUniqueSection) const {
   assert (!F.getComdat() && "Comdat not supported on XCOFF.");
 
   if (!TM.getFunctionSections())

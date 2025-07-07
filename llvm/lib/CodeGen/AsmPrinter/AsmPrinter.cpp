@@ -173,6 +173,12 @@ cl::opt<bool> llvm::EmitJumpTableSizesSection(
     cl::desc("Emit a section containing jump table addresses and sizes"),
     cl::Hidden, cl::init(false));
 
+cl::opt<bool> llvm::EmitUniqueJumpTableSection(
+    "emit-unique-jump-table-section",
+    cl::desc("Emit a unique section containing jump table target addresses"),
+    cl::Hidden, cl::init(false));
+
+
 // This isn't turned on by default, since several of the scheduling models are
 // not completely accurate, and we don't want to be misleading.
 static cl::opt<bool> PrintLatency(
@@ -2975,9 +2981,11 @@ void AsmPrinter::emitJumpTableImpl(const MachineJumpTableInfo &MJTI,
   if (JTInDiffSection) {
     if (TM.Options.EnableStaticDataPartitioning) {
       JumpTableSection =
-          TLOF.getSectionForJumpTable(F, TM, &JT[JumpTableIndices.front()]);
+          TLOF.getSectionForJumpTable(F, TM, &JT[JumpTableIndices.front()],
+                                      EmitUniqueJumpTableSection);
     } else {
-      JumpTableSection = TLOF.getSectionForJumpTable(F, TM);
+      JumpTableSection =
+          TLOF.getSectionForJumpTable(F, TM, EmitUniqueJumpTableSection);
     }
     OutStreamer->switchSection(JumpTableSection);
   }

@@ -78,11 +78,13 @@ public:
   MCSection *SelectSectionForGlobal(const GlobalObject *GO, SectionKind Kind,
                                     const TargetMachine &TM) const override;
 
-  MCSection *getSectionForJumpTable(const Function &F,
-                                    const TargetMachine &TM) const override;
   MCSection *
   getSectionForJumpTable(const Function &F, const TargetMachine &TM,
-                         const MachineJumpTableEntry *JTE) const override;
+                         bool EmitUniqueSection = false) const override;
+  MCSection *
+  getSectionForJumpTable(const Function &F, const TargetMachine &TM,
+                         const MachineJumpTableEntry *JTE,
+                         bool EmitUniqueSection = false) const override;
   MCSection *getSectionForLSDA(const Function &F, const MCSymbol &FnSym,
                                const TargetMachine &TM) const override;
 
@@ -197,8 +199,9 @@ public:
   void getNameWithPrefix(SmallVectorImpl<char> &OutName, const GlobalValue *GV,
                          const TargetMachine &TM) const override;
 
-  MCSection *getSectionForJumpTable(const Function &F,
-                                    const TargetMachine &TM) const override;
+  MCSection *
+  getSectionForJumpTable(const Function &F, const TargetMachine &TM,
+                         bool EmitUniqueSection = false) const override;
 
   bool shouldPutJumpTableInFunctionSection(bool UsesLabelDifference,
                                            const Function &F) const override;
@@ -277,8 +280,9 @@ public:
   MCSection *SelectSectionForGlobal(const GlobalObject *GO, SectionKind Kind,
                                     const TargetMachine &TM) const override;
 
-  MCSection *getSectionForJumpTable(const Function &F,
-                                    const TargetMachine &TM) const override;
+  MCSection *
+  getSectionForJumpTable(const Function &F, const TargetMachine &TM,
+                         bool EmitUniqueSection = false) const override;
 
   /// Given a constant with the SectionKind, return a section that it should be
   /// placed in.
