@@ -28,7 +28,11 @@ using namespace llvm;
 
 MCSymbol *
 BPFMCInstLower::GetGlobalAddressSymbol(const MachineOperand &MO) const {
-  return Printer.getSymbol(MO.getGlobal());
+  const GlobalValue *GVal = MO.getGlobal();
+  MCSymbol *Sym = Printer.lowerGlobalValue(GVal);
+  if (!Sym)
+    Sym = Printer.getSymbol(GVal);
+  return Sym;
 }
 
 MCSymbol *
@@ -85,7 +89,7 @@ void BPFMCInstLower::Lower(const MachineInstr *MI, MCInst &OutMI) const {
       break;
     case MachineOperand::MO_BlockAddress:
       MCOp = LowerSymbolOperand(
-          MO, Printer.GetBlockAddressSymbol(MO.getBlockAddress()));
+          MO, Printer.lowerBlockAddress(MO.getBlockAddress()));
       break;
     }
 
