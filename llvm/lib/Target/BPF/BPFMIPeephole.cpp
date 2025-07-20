@@ -30,6 +30,7 @@
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Support/Debug.h"
 #include <set>
 
@@ -308,6 +309,7 @@ struct BPFMIPreEmitPeephole : public MachineFunctionPass {
   const TargetRegisterInfo *TRI;
   const BPFInstrInfo *TII;
   bool SupportGotol;
+  bool DoneConvertPrivGlobal;
 
   BPFMIPreEmitPeephole() : MachineFunctionPass(ID) {}
 
@@ -321,6 +323,7 @@ private:
   bool insertMissingCallerSavedSpills();
   bool removeMayGotoZero();
   bool addExitAfterUnreachable();
+  bool convertPrivateGlobal();
 
 public:
 
@@ -338,6 +341,7 @@ public:
     Changed |= insertMissingCallerSavedSpills();
     Changed |= removeMayGotoZero();
     Changed |= addExitAfterUnreachable();
+    Changed |= convertPrivateGlobal();
     return Changed;
   }
 };
@@ -348,6 +352,7 @@ void BPFMIPreEmitPeephole::initialize(MachineFunction &MFParm) {
   TII = MF->getSubtarget<BPFSubtarget>().getInstrInfo();
   TRI = MF->getSubtarget<BPFSubtarget>().getRegisterInfo();
   SupportGotol = MF->getSubtarget<BPFSubtarget>().hasGotol();
+  DoneConvertPrivGlobal = false;
   LLVM_DEBUG(dbgs() << "*** BPF PreEmit peephole pass ***\n\n");
 }
 
@@ -747,6 +752,48 @@ bool BPFMIPreEmitPeephole::addExitAfterUnreachable() {
     return false;
 
   BuildMI(&MBB, MI.getDebugLoc(), TII->get(BPF::RET));
+  return true;
+}
+
+bool BPFMIPreEmitPeephole::convertPrivateGlobal() {
+  if (DoneConvertPrivGlobal)
+    return false;
+  DoneConvertPrivGlobal = true;
+
+  // A jump table associated with indirectbr looks like:
+  //   @__const.foo.jt1 = private unnamed_addr constant [2 x ptr]
+  //       [ptr blockaddress(@foo, %l1), ptr blockaddress(@foo, %l2)], align 8
+  Module *M = MF->getFunction().getParent();
+  for (GlobalVariable &Global : M->globals()) {
+    if (Global.getLinkage() != GlobalValue::PrivateLinkage)
+      continue;
+    if (!Global.isConstant())
+      continue;
+    if (!Global.hasInitializer())
+      continue;
+
+    Constant *CV = dyn_cast<Constant>(Global.getInitializer());
+    if (!CV)
+      continue;
+    ConstantArray *CA = dyn_cast<ConstantArray>(CV);
+    if (!CA)
+      continue;
+
+    for (unsigned i = 1, e = CA->getNumOperands(); i != e; ++i) {
+      if (!dyn_cast<BlockAddress>(CA->getOperand(i)))
+        continue;
+    }
+
+    // All jump tables in the same .jumptables section.
+    Global.setSection(".jumptables");
+
+    // The global symbol with PrivateLinkage (e.g. __const.foo.jt1) will add
+    // a prefix like '.L' (e.g. .L__const.foo.jt1) which will prevent symbol
+    // from appearing in the symbol table. Changing linkage type from
+    // PrivateLinkage to ExternalLinkage can preserve the symbol name in the
+    // symbol table and use the symbol name in relocation.
+    Global.setLinkage(GlobalValue::ExternalLinkage);
+  }
   return true;
 }
 
