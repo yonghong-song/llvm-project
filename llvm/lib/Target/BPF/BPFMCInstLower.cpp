@@ -28,7 +28,11 @@ using namespace llvm;
 
 MCSymbol *
 BPFMCInstLower::GetGlobalAddressSymbol(const MachineOperand &MO) const {
-  return Printer.getSymbol(MO.getGlobal());
+  const GlobalValue *GVal = MO.getGlobal();
+  MCSymbol *Sym = Printer.lowerGlobalValue(GVal);
+  if (!Sym)
+    Sym = Printer.getSymbol(GVal);
+  return Sym;
 }
 
 MCSymbol *

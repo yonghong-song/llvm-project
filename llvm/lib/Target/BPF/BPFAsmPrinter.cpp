@@ -145,6 +145,50 @@ MCSymbol *BPFAsmPrinter::getJTPublicSymbol(unsigned JTI) {
   return S;
 }
 
+MCSymbol *BPFAsmPrinter::lowerGlobalValue(const GlobalValue *GVal) {
+  auto *GV = dyn_cast<GlobalVariable>(GVal);
+  if (!GV)
+    return NULL;
+  if (GV->getLinkage() != GlobalValue::PrivateLinkage)
+    return NULL;
+  if (!GV->isConstant() || !GV->hasInitializer())
+    return NULL;
+
+  const Constant *CV = dyn_cast<Constant>(GV->getInitializer());
+  if (!CV)
+    return NULL;
+  const ConstantArray *CA = dyn_cast<ConstantArray>(CV);
+  if (!CA)
+    return NULL;
+
+  for (unsigned i = 0, e = CA->getNumOperands(); i != e; ++i) {
+    if (!dyn_cast<BlockAddress>(CA->getOperand(i)))
+      return NULL;
+  }
+
+  std::vector<MachineBasicBlock *> Targets;
+  for (unsigned i = 0, e = CA->getNumOperands(); i != e; ++i) {
+    BlockAddress *BA = dyn_cast<BlockAddress>(CA->getOperand(i));
+    BasicBlock *BB = BA->getBasicBlock();
+
+    MachineBasicBlock *MBB = nullptr;
+    for (MachineBasicBlock &MB : *MF) {
+      if (MB.getBasicBlock() == BB) {
+        MBB = &MB;
+        break;
+      }
+    }
+
+    Targets.push_back(MBB);
+  }
+  assert(Targets.size());
+
+  unsigned JTI =
+      MF->getOrCreateJumpTableInfo(MachineJumpTableInfo::EK_LabelDifference64)
+          ->createJumpTableIndex(Targets);
+  return getJTPublicSymbol(JTI);
+}
+
 void BPFAsmPrinter::emitJumpTableInfo() {
   const MachineJumpTableInfo *MJTI = MF->getJumpTableInfo();
   if (!MJTI)
