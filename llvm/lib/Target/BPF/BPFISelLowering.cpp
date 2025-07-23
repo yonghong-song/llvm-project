@@ -254,7 +254,7 @@ bool BPFTargetLowering::isZExtFree(SDValue Val, EVT VT2) const {
 }
 
 unsigned BPFTargetLowering::getJumpTableEncoding() const {
-  return MachineJumpTableInfo::EK_LabelDifference32;
+  return MachineJumpTableInfo::EK_LabelDifference64;
 }
 
 BPFTargetLowering::ConstraintType

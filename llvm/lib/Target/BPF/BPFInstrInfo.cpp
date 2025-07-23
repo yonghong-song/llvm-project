@@ -266,6 +266,9 @@ unsigned BPFInstrInfo::removeBranch(MachineBasicBlock &MBB,
 }
 
 int BPFInstrInfo::getJumpTableIndex(const MachineInstr &MI) const {
+  if (MI.getOpcode() != BPF::JX)
+    return -1;
+
   // The pattern looks like:
   // %0 = LD_imm64 %jump-table.0   ; load jump-table address
   // %1 = ADD_rr %0, $another_reg  ; address + offset

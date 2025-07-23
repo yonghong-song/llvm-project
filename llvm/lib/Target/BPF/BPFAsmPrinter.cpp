@@ -145,7 +145,7 @@ MCSymbol *BPFAsmPrinter::getJTPublicSymbol(unsigned JTI) {
   return S;
 }
 
-MCSymbol *BPFAsmPrinter::getJTPublicSymbol(const BlockAddress *BA) {
+MCSymbol *BPFAsmPrinter::lowerBlockAddress(const BlockAddress *BA) {
   BasicBlock *BB = BA->getBasicBlock();
 
   MachineBasicBlock *MBB = nullptr;
@@ -161,12 +161,12 @@ MCSymbol *BPFAsmPrinter::getJTPublicSymbol(const BlockAddress *BA) {
   Targets.push_back(MBB);
 
   unsigned JTI =
-      MF->getOrCreateJumpTableInfo(MachineJumpTableInfo::EK_LabelDifference32)
+      MF->getOrCreateJumpTableInfo(MachineJumpTableInfo::EK_LabelDifference64)
           ->createJumpTableIndex(Targets);
   return getJTPublicSymbol(JTI);
 }
 
-MCSymbol *BPFAsmPrinter::getJTPublicSymbol(const GlobalValue *GVal) {
+MCSymbol *BPFAsmPrinter::lowerGlobalValue(const GlobalValue *GVal) {
   auto *GV = dyn_cast<GlobalVariable>(GVal);
   if (!GV)
     return NULL;
@@ -205,7 +205,7 @@ MCSymbol *BPFAsmPrinter::getJTPublicSymbol(const GlobalValue *GVal) {
   assert(Targets.size());
 
   unsigned JTI =
-      MF->getOrCreateJumpTableInfo(MachineJumpTableInfo::EK_LabelDifference32)
+      MF->getOrCreateJumpTableInfo(MachineJumpTableInfo::EK_LabelDifference64)
           ->createJumpTableIndex(Targets);
   return getJTPublicSymbol(JTI);
 }
@@ -222,7 +222,7 @@ void BPFAsmPrinter::emitJumpTableInfo() {
   const TargetLoweringObjectFile &TLOF = getObjFileLowering();
   const Function &F = MF->getFunction();
   MCSection *JTS = TLOF.getSectionForJumpTable(F, TM);
-  assert(MJTI->getEntryKind() == MachineJumpTableInfo::EK_LabelDifference32);
+  assert(MJTI->getEntryKind() == MachineJumpTableInfo::EK_LabelDifference64);
   unsigned EntrySize = MJTI->getEntrySize(getDataLayout());
   OutStreamer->switchSection(JTS);
   for (unsigned JTI = 0; JTI < JT.size(); JTI++) {
