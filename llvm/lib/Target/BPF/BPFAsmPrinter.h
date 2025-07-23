@@ -29,6 +29,7 @@ public:
                              const char *ExtraCode, raw_ostream &O) override;
 
   void emitInstruction(const MachineInstr *MI) override;
+  bool doFinalization(Module &M) override;
   MCSymbol *getJTPublicSymbol(unsigned JTI);
   MCSymbol *lowerBlockAddress(const BlockAddress *BA);
   MCSymbol *lowerGlobalValue(const GlobalValue *GVal);

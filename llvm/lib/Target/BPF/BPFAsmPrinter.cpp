@@ -133,6 +133,39 @@ void BPFAsmPrinter::emitInstruction(const MachineInstr *MI) {
   EmitToStreamer(*OutStreamer, TmpInst);
 }
 
+bool BPFAsmPrinter::doFinalization(Module &M) {
+  // Remove computed goto globals like
+  // @__const.foo.jt1 = private unnamed_addr constant [2 x ptr]
+  //     [ptr blockaddress(@foo, %l1), ptr blockaddress(@foo, %l2)], align 8
+  // These globals have been replaced with a jumptable label.
+
+  std::vector<GlobalVariable *> Targets;
+  for (GlobalVariable &Global : M.globals()) {
+    if (Global.getLinkage() != GlobalValue::PrivateLinkage)
+      continue;
+    if (!Global.isConstant() || !Global.hasInitializer())
+      continue;
+
+    Constant *CV = dyn_cast<Constant>(Global.getInitializer());
+    if (!CV)
+      continue;
+    ConstantArray *CA = dyn_cast<ConstantArray>(CV);
+    if (!CA)
+      continue;
+
+    for (unsigned i = 1, e = CA->getNumOperands(); i != e; ++i) {
+      if (!dyn_cast<BlockAddress>(CA->getOperand(i)))
+        continue;
+    }
+    Targets.push_back(&Global);
+  }
+
+  for (GlobalVariable *GV : Targets)
+    GV->eraseFromParent();
+
+  return AsmPrinter::doFinalization(M);
+}
+
 MCSymbol *BPFAsmPrinter::getJTPublicSymbol(unsigned JTI) {
   SmallString<60> Name;
   raw_svector_ostream(Name)
