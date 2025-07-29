@@ -4857,9 +4857,9 @@ void AssemblyWriter::printDbgMarker(const DbgMarker &Marker) {
 }
 
 void AssemblyWriter::printDbgRecord(const DbgRecord &DR) {
-  if (auto *DVR = dyn_cast<DbgVariableRecord>(&DR))
+  if (auto *DVR = dyn_cast<DbgVariableRecord>(&DR)) {
     printDbgVariableRecord(*DVR);
-  else if (auto *DLR = dyn_cast<DbgLabelRecord>(&DR))
+  } else if (auto *DLR = dyn_cast<DbgLabelRecord>(&DR))
     printDbgLabelRecord(*DLR);
   else
     llvm_unreachable("Unexpected DbgRecord kind");

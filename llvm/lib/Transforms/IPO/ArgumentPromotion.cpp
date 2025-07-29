@@ -52,6 +52,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
@@ -184,6 +185,14 @@ doPromotion(Function *F, FunctionAnalysisManager &FAM,
   // function. The original function may not be deleted, and dbg metadata need
   // to be unique, so we need to drop it.
   F->setSubprogram(nullptr);
+
+  // DW_CC_nocall to DISubroutineType to inform debugger that it may not be safe
+  // to call this function.
+  DISubprogram *SP = NF->getSubprogram();
+  if (SP) {
+    auto Temp = SP->getType()->cloneWithCC(llvm::dwarf::DW_CC_nocall);
+    SP->replaceType(MDNode::replaceWithPermanent(std::move(Temp)));
+  }
 
   LLVM_DEBUG(dbgs() << "ARG PROMOTION:  Promoting to:" << *NF << "\n"
                     << "From: " << *F);

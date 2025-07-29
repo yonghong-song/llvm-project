@@ -1023,11 +1023,13 @@ void Verifier::visitNamedMDNode(const NamedMDNode &NMD) {
   // There used to be various other llvm.dbg.* nodes, but we don't support
   // upgrading them and we want to reserve the namespace for future uses.
   if (NMD.getName().starts_with("llvm.dbg."))
-    CheckDI(NMD.getName() == "llvm.dbg.cu",
+    CheckDI(NMD.getName() == "llvm.dbg.cu" || NMD.getName() == "llvm.dbg.sp.extra",
             "unrecognized named metadata node in the llvm.dbg namespace", &NMD);
   for (const MDNode *MD : NMD.operands()) {
     if (NMD.getName() == "llvm.dbg.cu")
       CheckDI(MD && isa<DICompileUnit>(MD), "invalid compile unit", &NMD, MD);
+    else if (NMD.getName() == "llvm.dbg.sp.extra")
+      CheckDI(MD && isa<DISubprogram>(MD), "invalid subprogram", &NMD, MD);
 
     if (!MD)
       continue;
