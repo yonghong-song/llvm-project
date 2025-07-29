@@ -140,6 +140,8 @@ static lto::Config createConfig(Ctx &ctx) {
   c.TimeTraceEnabled = ctx.arg.timeTraceEnabled;
   c.TimeTraceGranularity = ctx.arg.timeTraceGranularity;
 
+  c.ShouldDiscardValueNames = ctx.arg.shouldDiscardValueNames;
+
   c.CSIRProfile = std::string(ctx.arg.ltoCSProfileFile);
   c.RunCSIRInstr = ctx.arg.ltoCSProfileGenerate;
   c.PGOWarnMismatch = ctx.arg.ltoPGOWarnMismatch;

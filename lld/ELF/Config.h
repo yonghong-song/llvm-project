@@ -376,6 +376,7 @@ struct Config {
   bool shared;
   bool symbolic;
   bool isStatic = false;
+  bool shouldDiscardValueNames = true;
   bool sysvHash = false;
   bool target1Rel;
   bool trace;

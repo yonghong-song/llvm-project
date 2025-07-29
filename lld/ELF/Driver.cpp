@@ -2051,6 +2051,9 @@ static void setConfigs(Ctx &ctx, opt::InputArgList &args) {
   if (ctx.arg.outputFile.empty())
     ctx.arg.outputFile = "a.out";
 
+  // Enable LTO argument names. We should have an option here.
+  ctx.arg.shouldDiscardValueNames = false;
+
   // Fail early if the output file or map file is not writable. If a user has a
   // long link, e.g. due to a large LTO link, they do not wish to run it and
   // find that it failed because there was a mistake in their command-line.
