@@ -30,6 +30,7 @@
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Support/Debug.h"
 #include <set>
 
@@ -308,6 +309,8 @@ struct BPFMIPreEmitPeephole : public MachineFunctionPass {
   const TargetRegisterInfo *TRI;
   const BPFInstrInfo *TII;
   bool SupportGotol;
+  bool SupportGotox;
+  bool doneRemoveUnneededGV = false;
 
   BPFMIPreEmitPeephole() : MachineFunctionPass(ID) {}
 
@@ -321,6 +324,7 @@ private:
   bool insertMissingCallerSavedSpills();
   bool removeMayGotoZero();
   bool addExitAfterUnreachable();
+  bool removeUnneededGV();
 
 public:
 
@@ -338,6 +342,8 @@ public:
     Changed |= insertMissingCallerSavedSpills();
     Changed |= removeMayGotoZero();
     Changed |= addExitAfterUnreachable();
+    if (SupportGotox && !doneRemoveUnneededGV)
+      Changed |= removeUnneededGV();
     return Changed;
   }
 };
@@ -348,6 +354,7 @@ void BPFMIPreEmitPeephole::initialize(MachineFunction &MFParm) {
   TII = MF->getSubtarget<BPFSubtarget>().getInstrInfo();
   TRI = MF->getSubtarget<BPFSubtarget>().getRegisterInfo();
   SupportGotol = MF->getSubtarget<BPFSubtarget>().hasGotol();
+  SupportGotox = MF->getSubtarget<BPFSubtarget>().hasGotox();
   LLVM_DEBUG(dbgs() << "*** BPF PreEmit peephole pass ***\n\n");
 }
 
@@ -748,6 +755,42 @@ bool BPFMIPreEmitPeephole::addExitAfterUnreachable() {
 
   BuildMI(&MBB, MI.getDebugLoc(), TII->get(BPF::RET));
   return true;
+}
+
+// Remove global variables which has blockaddress since those global variables
+// have been converted to proper jump tables.
+bool BPFMIPreEmitPeephole::removeUnneededGV() {
+  bool Changed = false;
+  Module *M = MF->getFunction().getParent();
+  std::vector<GlobalVariable *> Targets;
+  for (GlobalVariable &Global : M->globals()) {
+    if (Global.getLinkage() != GlobalValue::PrivateLinkage)
+      continue;
+    if (!Global.isConstant() || !Global.hasInitializer())
+      continue;
+
+    Constant *CV = dyn_cast<Constant>(Global.getInitializer());
+    if (!CV)
+      continue;
+    ConstantArray *CA = dyn_cast<ConstantArray>(CV);
+    if (!CA)
+      continue;
+
+    for (unsigned i = 1, e = CA->getNumOperands(); i != e; ++i) {
+      if (!dyn_cast<BlockAddress>(CA->getOperand(i)))
+        continue;
+    }
+    Targets.push_back(&Global);
+    Changed = true;
+  }
+
+  for (GlobalVariable *GV : Targets) {
+    GV->replaceAllUsesWith(PoisonValue::get(GV->getType()));
+    GV->eraseFromParent();
+  }
+
+  doneRemoveUnneededGV = true;
+  return Changed;
 }
 
 } // end default namespace

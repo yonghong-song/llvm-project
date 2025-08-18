@@ -52,6 +52,12 @@ bool BPFAsmPrinter::doInitialization(Module &M) {
   return false;
 }
 
+bool BPFAsmPrinter::doFinalization(Module &M) {
+  // Remove unused globals which are previously used for jump table.
+
+  AsmPrinter::doFinalization(M);
+}
+
 void BPFAsmPrinter::printOperand(const MachineInstr *MI, int OpNum,
                                  raw_ostream &O) {
   const MachineOperand &MO = MI->getOperand(OpNum);
