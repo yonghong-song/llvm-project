@@ -729,6 +729,32 @@ class BRANCH_LONG<BPFJumpOp Opc, string OpcodeStr, list<dag> Pattern>
   let BPFClass = BPF_JMP32;
 }
 
+class BRANCH_OR_NOP<BPFJumpOp Opc, string OpcodeStr, list<dag> Pattern>
+    : TYPE_ALU_JMP<Opc.Value, BPF_K.Value,
+                   (outs),
+                   (ins brtarget:$BrDst),
+                   !strconcat(OpcodeStr, " $BrDst"),
+                   Pattern> {
+  bits<32> BrDst;
+
+  let Inst{55-52} = 1;
+  let Inst{31-0} = BrDst;
+  let BPFClass = BPF_JMP32;
+}
+
+class NOP_OR_BRANCH<BPFJumpOp Opc, string OpcodeStr, list<dag> Pattern>
+    : TYPE_ALU_JMP<Opc.Value, BPF_K.Value,
+                   (outs),
+                   (ins brtarget:$BrDst),
+                   !strconcat(OpcodeStr, " $BrDst"),
+                   Pattern> {
+  bits<32> BrDst;
+
+  let Inst{55-52} = 3;
+  let Inst{31-0} = BrDst;
+  let BPFClass = BPF_JMP32;
+}
+
 class CALL<string OpcodeStr>
     : TYPE_ALU_JMP<BPF_CALL.Value, BPF_K.Value,
                    (outs),
@@ -757,6 +783,8 @@ class CALLX<string OpcodeStr>
 let isBranch = 1, isTerminator = 1, hasDelaySlot=0, isBarrier = 1 in {
   def JMP : BRANCH<BPF_JA, "goto", [(br bb:$BrDst)]>;
   def JMPL : BRANCH_LONG<BPF_JA, "gotol", []>;
+  def JMPL_OR_NOP : BRANCH_OR_NOP<BPF_JA, "gotol_or_nop", []>;
+  def NOP_OR_JMPL : NOP_OR_BRANCH<BPF_JA, "nop_or_gotol", []>;
 }
 
 // Jump and link

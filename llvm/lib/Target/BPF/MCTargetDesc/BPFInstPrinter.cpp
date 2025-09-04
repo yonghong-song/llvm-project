@@ -80,7 +80,8 @@ void BPFInstPrinter::printBrTargetOperand(const MCInst *MI, unsigned OpNo,
                                        raw_ostream &O) {
   const MCOperand &Op = MI->getOperand(OpNo);
   if (Op.isImm()) {
-    if (MI->getOpcode() == BPF::JMPL) {
+    if (MI->getOpcode() == BPF::JMPL || MI->getOpcode() == BPF::JMPL_OR_NOP ||
+        MI->getOpcode() == BPF::NOP_OR_JMPL) {
       int32_t Imm = Op.getImm();
       O << ((Imm >= 0) ? "+" : "") << formatImm(Imm);
     } else {
