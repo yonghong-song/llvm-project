@@ -37,63 +37,18 @@ static DIType *stripToBaseOrFirstPointer(DIType *T) {
   return T;
 }
 
-/// Rebuild a DILocation chain identical to Old, but root it under NewSP via
-/// inlinedAt.
-static const DILocation *reanchorDILocChain(const DILocation *Old,
-                                            DISubprogram *NewSP,
-                                            LLVMContext &Ctx) {
-  // Root location anchored at the new subprogram.
-  DILocation *Root = DILocation::get(Ctx, 0, 0, NewSP);
-
-  SmallVector<const DILocation *, 8> Chain;
-  const DILocation *Cur = Old;
-  Chain.push_back(Cur);
-  while ((Cur = Cur->getInlinedAt()))
-    Chain.push_back(Cur);
-
-  DILocation *Prev = Root;
-  for (int i = Chain.size() - 1; i >= 0; --i) {
-    const DILocation *DL = Chain[i];
-    Prev = DILocation::get(Ctx, DL->getLine(), DL->getColumn(), DL->getScope(),
-                           Prev, DL->isImplicitCode(), DL->getAtomGroup(),
-                           DL->getAtomRank());
-  }
-  return Prev;
-}
-
-/// Recursively transform every DILocation inside an MD tree.
-static Metadata *
-mapAllDILocs(Metadata *M,
-             std::function<const DILocation *(const DILocation *)> X,
-             LLVMContext &Ctx) {
-  if (auto *DL = dyn_cast<DILocation>(M))
-    return const_cast<DILocation *>(X(DL));
-
-  if (auto *N = dyn_cast<MDNode>(M)) {
-    SmallVector<Metadata *, 8> NewOps;
-    NewOps.reserve(N->getNumOperands());
-    for (const MDOperand &Op : N->operands())
-      NewOps.push_back(mapAllDILocs(Op.get(), X, Ctx));
-    return MDNode::get(Ctx, NewOps); // tag nodes need not be distinct
-  }
-  return M;
-}
-
-/// Clone a loop MD node, rewriting all nested DILocations with X.
-static MDNode *cloneLoopIDReplacingAllDILocs(
-    MDNode *OldLoopID, std::function<const DILocation *(const DILocation *)> X,
-    LLVMContext &Ctx) {
-  SmallVector<Metadata *, 8> Ops;
-  Ops.reserve(OldLoopID->getNumOperands());
-  Ops.push_back(nullptr); // placeholder for self
-  for (unsigned i = 1, e = OldLoopID->getNumOperands(); i < e; ++i)
-    Ops.push_back(mapAllDILocs(OldLoopID->getOperand(i).get(), X, Ctx));
-  MDNode *New = MDNode::getDistinct(Ctx, Ops);
-  New->replaceOperandWith(0, New);
-  return New;
-}
-
 /// ===================== Type utilities =====================
+
+static DIType *createBasicType(DIBuilder &DIB, uint64_t SizeInBits) {
+  if (SizeInBits == 8)
+    return DIB.createBasicType("char", SizeInBits, dwarf::DW_ATE_signed);
+  else if (SizeInBits == 16)
+    return DIB.createBasicType("short", SizeInBits, dwarf::DW_ATE_signed);
+  else if (SizeInBits == 32)
+    return DIB.createBasicType("int", SizeInBits, dwarf::DW_ATE_signed);
+  else /* SizeInBits == 64 */
+    return DIB.createBasicType("long long", SizeInBits, dwarf::DW_ATE_signed);
+}
 
 /// For a struct/union parameter split into fragments, derive an integer DIType
 /// for the fragment described by Expr. If a member with matching (offset,size)
@@ -115,8 +70,7 @@ static DIType *getIntTypeFromExpr(DIBuilder &DIB, DIExpression *Expr,
       }
     }
     // No matching member; synthesize.
-    return DIB.createBasicType(("int" + std::to_string(BitSize)).c_str(),
-                               BitSize, dwarf::DW_ATE_signed);
+    return createBasicType(DIB, BitSize);
   }
   return nullptr;
 }
@@ -142,8 +96,7 @@ static DIType *computeParamDIType(DIBuilder &DIB, Type *Ty, DIType *Orig,
       // sizes match -> rare; accept fallthrough
     }
     unsigned W = cast<IntegerType>(Ty)->getBitWidth();
-    return DIB.createBasicType(("int" + std::to_string(W)).c_str(), W,
-                               dwarf::DW_ATE_signed);
+    return createBasicType(DIB, W);
   }
 
   if (Ty->isPointerTy()) {
@@ -156,9 +109,7 @@ static DIType *computeParamDIType(DIBuilder &DIB, Type *Ty, DIType *Orig,
         return Der; // already a pointer in DI
     }
     // Generic pointer: synthesize pointer to pointer-sized int
-    DIType *Base =
-        DIB.createBasicType(("int" + std::to_string(PointerBitWidth)).c_str(),
-                            PointerBitWidth, dwarf::DW_ATE_signed);
+    DIType *Base = createBasicType(DIB, PointerBitWidth);
     return DIB.createPointerType(Base, PointerBitWidth);
   }
 
@@ -168,8 +119,7 @@ static DIType *computeParamDIType(DIBuilder &DIB, Type *Ty, DIType *Orig,
                                dwarf::DW_ATE_float);
   }
   // Default to pointer-sized int
-  return DIB.createBasicType(("int" + std::to_string(PointerBitWidth)).c_str(),
-                             PointerBitWidth, dwarf::DW_ATE_signed);
+  return createBasicType(DIB, PointerBitWidth);
 }
 
 /// Synthesize a DI type/name for a parameter we failed to match via dbg
@@ -178,8 +128,7 @@ static std::pair<DIType *, std::string>
 fallbackParam(DIBuilder &DIB, Function *F, unsigned Idx, unsigned PtrW) {
   Type *Ty = F->getArg(Idx)->getType();
   unsigned W = Ty->isIntegerTy() ? cast<IntegerType>(Ty)->getBitWidth() : 32;
-  DIType *BaseInt = DIB.createBasicType(("int" + std::to_string(W)).c_str(), W,
-                                        dwarf::DW_ATE_signed);
+  DIType *BaseInt = createBasicType(DIB, W);
   DIType *ParamTy =
       Ty->isIntegerTy() ? BaseInt : DIB.createPointerType(BaseInt, PtrW);
   std::string Name = F->getArg(Idx)->getName().str();
@@ -270,7 +219,7 @@ static bool getOneArgDI(Module &M, unsigned Idx, BasicBlock &Entry,
       }
 
       auto *NewVar = DIB.createParameterVariable(
-          NewSP, StringRef(ArgName), Idx + 1, OldSP->getUnit()->getFile(),
+          NewSP, StringRef(ArgName), Idx + 1, OldSP->getFile(),
           OldSP->getLine(), ParamType);
       ArgList.push_back(NewVar);
       return true;
@@ -281,7 +230,7 @@ static bool getOneArgDI(Module &M, unsigned Idx, BasicBlock &Entry,
   auto [ParamTy, Name] = fallbackParam(DIB, F, Idx, PointerBitWidth);
   TypeList.push_back(ParamTy);
   auto *NewVar = DIB.createParameterVariable(NewSP, StringRef(Name), Idx + 1,
-                                             OldSP->getUnit()->getFile(),
+                                             OldSP->getFile(),
                                              OldSP->getLine(), ParamTy);
   ArgList.push_back(NewVar);
   return true;
@@ -321,20 +270,9 @@ static void generateDebugInfo(Module &M, Function *F,
   DIBuilder DIB(M, /*AllowUnresolved=*/false, CU);
 
   SmallVector<Metadata *, 5> TypeList, ArgList;
+  LLVMContext &Ctx = M.getContext();
 
-  // Create a fresh “artificial” subprogram (type/args filled later).
-  DISubprogram *NewSP =
-      DIB.createFunction(OldSP->getScope(),     // Scope
-                         F->getName(),          // Name
-                         F->getName(),          // Linkage name
-                         CU->getFile(),         // File
-                         OldSP->getLine(),      // Line
-                         nullptr,               // DISubroutineType
-                         OldSP->getScopeLine(), // ScopeLine
-                         DINode::FlagZero | DINode::FlagArtificial,
-                         DISubprogram::SPFlagDefinition);
-
-  bool Success = collectReturnAndArgs(M, DIB, F, OldSP, NewSP, TypeList,
+  bool Success = collectReturnAndArgs(M, DIB, F, OldSP, OldSP, TypeList,
                                       ArgList, PointerBitWidth);
   if (!Success) {
     // Cannot decide a signature: mark the old one nocall and bail out.
@@ -344,46 +282,48 @@ static void generateDebugInfo(Module &M, Function *F,
     return;
   }
 
-  // Install new type + retained params.
+  if (OldSP->getName() != F->getName())
+    OldSP->replaceLinkageName(MDString::get(Ctx, F->getName()));
+
+  DISubprogram *DeclSP = DIB.createFunction(
+      OldSP->getScope(), OldSP->getName(), "", OldSP->getFile(),
+      OldSP->getLine(), OldSP->getType(), OldSP->getScopeLine(),
+      DINode::FlagZero, DISubprogram::SPFlagZero);
+
+  SmallVector<Metadata *, 5> DeclParams;
+  for (DINode *DN : OldSP->getRetainedNodes()) {
+    if (auto *DV = dyn_cast<DILocalVariable>(DN)) {
+      uint32_t Arg = DV->getArg();
+      if (!Arg)
+        continue;
+
+      auto *NewArg = DIB.createParameterVariable(
+          DeclSP, DV->getName(), Arg, OldSP->getFile(), DV->getLine(),
+          DV->getType(), true, DV->getFlags());
+      DeclParams.push_back(NewArg);
+    }
+  }
+
+  auto Arr = DIB.getOrCreateArray(DeclParams);
+  DeclSP->replaceRetainedNodes(Arr);
+
+  DeclSP->replaceRetainedNodes(DIB.getOrCreateArray(DeclParams));
+  OldSP->replaceDeclaration(DeclSP);
+
+  // Install new type
   DITypeRefArray DITypeArray = DIB.getOrCreateTypeArray(TypeList);
   auto *SubroutineType = DIB.createSubroutineType(DITypeArray);
-  NewSP->replaceType(SubroutineType);
-  NewSP->replaceRetainedNodes(DIB.getOrCreateArray(ArgList));
-  F->setSubprogram(NewSP);
+  OldSP->replaceType(SubroutineType);
 
-  // Reanchor all DILocations (DbgRecord stream + Instruction DebugLoc +
-  // MD_loop).
-  LLVMContext &Ctx = M.getContext();
-  const auto Reanchor = [&](const DILocation *Old) -> const DILocation * {
-    return reanchorDILocChain(Old, NewSP, Ctx);
-  };
-
-  for (BasicBlock &BB : *F) {
-    for (Instruction &I : BB) {
-      for (DbgRecord &DR : I.getDbgRecordRange()) {
-        if (DebugLoc DL = DR.getDebugLoc())
-          DR.setDebugLoc(
-              DebugLoc(const_cast<DILocation *>(Reanchor(DL.get()))));
-      }
-      if (DebugLoc DL = I.getDebugLoc())
-        I.setDebugLoc(DebugLoc(const_cast<DILocation *>(Reanchor(DL.get()))));
-      if (MDNode *LoopID = I.getMetadata(LLVMContext::MD_loop)) {
-        MDNode *New = cloneLoopIDReplacingAllDILocs(LoopID, Reanchor, Ctx);
-        I.setMetadata(LLVMContext::MD_loop, New);
-      }
+  // Install retained nodes
+  for (DINode *DN : OldSP->getRetainedNodes()) {
+    if (auto *DV = dyn_cast<DILocalVariable>(DN)) {
+      uint32_t Arg = DV->getArg();
+      if (!Arg)
+        ArgList.push_back(DV);
     }
   }
-
-  // Insert dbg.values for the real IR arguments at function entry.
-  if (unsigned NumArgs = F->getFunctionType()->getNumParams()) {
-    auto IP = F->getEntryBlock().getFirstInsertionPt();
-    const DILocation *Top = DILocation::get(Ctx, 0, 0, NewSP);
-    for (int i = (int)NumArgs - 1; i >= 0; --i) {
-      auto *Var = cast<DILocalVariable>(ArgList[i]);
-      DIB.insertDbgValueIntrinsic(F->getArg(i), Var, DIB.createExpression(),
-                                  Top, IP);
-    }
-  }
+  OldSP->replaceRetainedNodes(DIB.getOrCreateArray(ArgList));
 
   DIB.finalize();
 }
@@ -451,7 +391,7 @@ PreservedAnalyses EmitChangedFuncDebugInfoPass::run(Module &M,
     }
 
     // Reset CC to DW_CC_normal; we’ll mark the new SP as Artificial.
-    auto Temp = SP->getType()->cloneWithCC(llvm::dwarf::DW_CC_normal);
+    auto Temp = SP->getType()->cloneWithCC(0);
     SP->replaceType(MDNode::replaceWithPermanent(std::move(Temp)));
 
     ChangedFuncs.push_back(&F);

@@ -33,11 +33,9 @@ define dso_local ptr @bar(ptr noundef %0, ptr noundef %1) local_unnamed_addr #0 
 define internal fastcc ptr @foo(ptr noundef %0, ptr noundef %1) unnamed_addr #1 !dbg !26 {
 ; CHECK-LABEL: define internal fastcc ptr @foo(
 ; CHECK-SAME: ptr noundef [[TMP0:%.*]], ptr noundef [[TMP1:%.*]]) unnamed_addr #[[ATTR1:[0-9]+]] !dbg [[DBG26:![0-9]+]] {
-; CHECK-NEXT:      #dbg_value(ptr [[TMP0]], [[META28:![0-9]+]], !DIExpression(), [[META29:![0-9]+]])
-; CHECK-NEXT:      #dbg_value(ptr [[TMP1]], [[META30:![0-9]+]], !DIExpression(), [[META29]])
-; CHECK-NEXT:      #dbg_value(ptr [[TMP0]], [[META31:![0-9]+]], !DIExpression(), [[META38:![0-9]+]])
-; CHECK-NEXT:      #dbg_value(ptr [[TMP1]], [[META36:![0-9]+]], !DIExpression(), [[META38]])
-; CHECK-NEXT:      #dbg_value(i32 poison, [[META37:![0-9]+]], !DIExpression(), [[META38]])
+; CHECK-NEXT:      #dbg_value(ptr [[TMP0]], [[META35:![0-9]+]], !DIExpression(), [[META37:![0-9]+]])
+; CHECK-NEXT:      #dbg_value(ptr [[TMP1]], [[META36:![0-9]+]], !DIExpression(), [[META37]])
+; CHECK-NEXT:      #dbg_value(i32 poison, [[META38:![0-9]+]], !DIExpression(), [[META37]])
 ; CHECK-NEXT:    [[TMP3:%.*]] = tail call ptr @tar(ptr noundef [[TMP0]], ptr noundef [[TMP1]]) #[[ATTR3:[0-9]+]], !dbg [[DBG39:![0-9]+]]
 ; CHECK-NEXT:    ret ptr [[TMP3]], !dbg [[DBG40:![0-9]+]]
 ;
@@ -115,19 +113,19 @@ attributes #3 = { nounwind }
 ; CHECK: [[META23]] = !DILocation(line: 0, scope: [[DBG10]])
 ; CHECK: [[DBG24]] = !DILocation(line: 9, column: 10, scope: [[DBG10]], atomGroup: 1, atomRank: 2)
 ; CHECK: [[DBG25]] = !DILocation(line: 9, column: 3, scope: [[DBG10]], atomGroup: 1, atomRank: 1)
-; CHECK: [[DBG26]] = distinct !DISubprogram(name: "foo", linkageName: "foo", scope: [[META1]], file: [[META1]], line: 3, type: [[META11]], scopeLine: 4, flags: DIFlagArtificial, spFlags: DISPFlagDefinition, unit: [[META0]], retainedNodes: [[META27:![0-9]+]])
-; CHECK: [[META27]] = !{}
-; CHECK: [[META28]] = !DILocalVariable(name: "a", arg: 1, scope: [[DBG26]], file: [[META1]], line: 3, type: [[META15]])
-; CHECK: [[META29]] = !DILocation(line: 0, scope: [[DBG26]])
-; CHECK: [[META30]] = !DILocalVariable(name: "d", arg: 2, scope: [[DBG26]], file: [[META1]], line: 3, type: [[META15]])
-; CHECK: [[META31]] = !DILocalVariable(name: "a", arg: 1, scope: [[META32:![0-9]+]], file: [[META1]], line: 3, type: [[META15]])
-; CHECK: [[META32]] = distinct !DISubprogram(name: "foo", scope: [[META1]], file: [[META1]], line: 3, type: [[META33:![0-9]+]], scopeLine: 4, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagLocalToUnit | DISPFlagDefinition | DISPFlagOptimized, unit: [[META0]], retainedNodes: [[META35:![0-9]+]], keyInstructions: true)
-; CHECK: [[META33]] = !DISubroutineType(cc: DW_CC_normal, types: [[META34:![0-9]+]])
-; CHECK: [[META34]] = !{[[META13]], [[META15]], [[META15]], [[META19]]}
-; CHECK: [[META35]] = !{[[META31]], [[META36]], [[META37]]}
-; CHECK: [[META36]] = !DILocalVariable(name: "d", arg: 2, scope: [[META32]], file: [[META1]], line: 3, type: [[META15]])
-; CHECK: [[META37]] = !DILocalVariable(name: "b", arg: 3, scope: [[META32]], file: [[META1]], line: 3, type: [[META19]])
-; CHECK: [[META38]] = !DILocation(line: 0, scope: [[META32]], inlinedAt: [[META29]])
-; CHECK: [[DBG39]] = !DILocation(line: 5, column: 10, scope: [[META32]], inlinedAt: [[META29]], atomGroup: 1, atomRank: 2)
-; CHECK: [[DBG40]] = !DILocation(line: 5, column: 3, scope: [[META32]], inlinedAt: [[META29]], atomGroup: 1, atomRank: 1)
+; CHECK: [[DBG26]] = distinct !DISubprogram(name: "foo", scope: [[META1]], file: [[META1]], line: 3, type: [[META11]], scopeLine: 4, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagLocalToUnit | DISPFlagDefinition | DISPFlagOptimized, unit: [[META0]], declaration: [[META27:![0-9]+]], retainedNodes: [[META34:![0-9]+]], keyInstructions: true)
+; CHECK: [[META27]] = !DISubprogram(name: "foo", scope: [[META1]], file: [[META1]], line: 3, type: [[META28:![0-9]+]], scopeLine: 4, spFlags: 0, retainedNodes: [[META30:![0-9]+]])
+; CHECK: [[META28]] = !DISubroutineType(types: [[META29:![0-9]+]])
+; CHECK: [[META29]] = !{[[META13]], [[META15]], [[META15]], [[META19]]}
+; CHECK: [[META30]] = !{[[META31:![0-9]+]], [[META32:![0-9]+]], [[META33:![0-9]+]]}
+; CHECK: [[META31]] = !DILocalVariable(name: "a", arg: 1, scope: [[META27]], file: [[META1]], line: 3, type: [[META15]])
+; CHECK: [[META32]] = !DILocalVariable(name: "d", arg: 2, scope: [[META27]], file: [[META1]], line: 3, type: [[META15]])
+; CHECK: [[META33]] = !DILocalVariable(name: "b", arg: 3, scope: [[META27]], file: [[META1]], line: 3, type: [[META19]])
+; CHECK: [[META34]] = !{[[META35]], [[META36]]}
+; CHECK: [[META35]] = !DILocalVariable(name: "a", arg: 1, scope: [[DBG26]], file: [[META1]], line: 3, type: [[META15]])
+; CHECK: [[META36]] = !DILocalVariable(name: "d", arg: 2, scope: [[DBG26]], file: [[META1]], line: 3, type: [[META15]])
+; CHECK: [[META37]] = !DILocation(line: 0, scope: [[DBG26]])
+; CHECK: [[META38]] = !DILocalVariable(name: "b", arg: 3, scope: [[DBG26]], file: [[META1]], line: 3, type: [[META19]])
+; CHECK: [[DBG39]] = !DILocation(line: 5, column: 10, scope: [[DBG26]], atomGroup: 1, atomRank: 2)
+; CHECK: [[DBG40]] = !DILocation(line: 5, column: 3, scope: [[DBG26]], atomGroup: 1, atomRank: 1)
 ;.

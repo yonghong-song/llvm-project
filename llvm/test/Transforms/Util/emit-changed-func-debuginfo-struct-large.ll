@@ -14,8 +14,7 @@
 define dso_local i64 @foo(ptr noundef readonly byval(%struct.t) align 8 captures(none) %0) local_unnamed_addr #0 !dbg !9 {
 ; CHECK-LABEL: define dso_local i64 @foo(
 ; CHECK-SAME: ptr noundef readonly byval([[STRUCT_T:%.*]]) align 8 captures(none) [[TMP0:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] !dbg [[DBG9:![0-9]+]] {
-; CHECK-NEXT:      #dbg_value(ptr [[TMP0]], [[META20:![0-9]+]], !DIExpression(), [[META21:![0-9]+]])
-; CHECK-NEXT:      #dbg_declare(ptr [[TMP0]], [[META22:![0-9]+]], !DIExpression(), [[META27:![0-9]+]])
+; CHECK-NEXT:      #dbg_declare(ptr [[TMP0]], [[META26:![0-9]+]], !DIExpression(), [[META27:![0-9]+]])
 ; CHECK-NEXT:    [[TMP2:%.*]] = load i64, ptr [[TMP0]], align 8, !dbg [[DBG28:![0-9]+]], !tbaa [[LONG_TBAA29:![0-9]+]]
 ; CHECK-NEXT:    [[TMP3:%.*]] = getelementptr inbounds nuw i8, ptr [[TMP0]], i64 16, !dbg [[DBG34:![0-9]+]]
 ; CHECK-NEXT:    [[TMP4:%.*]] = load i64, ptr [[TMP3]], align 8, !dbg [[DBG34]], !tbaa [[LONG_TBAA35:![0-9]+]]
@@ -70,7 +69,7 @@ attributes #0 = { mustprogress nofree norecurse nosync nounwind willreturn memor
 ;.
 ; CHECK: [[META0:![0-9]+]] = distinct !DICompileUnit(language: DW_LANG_C11, file: [[META1:![0-9]+]], producer: "{{.*}}clang version {{.*}}", isOptimized: true, runtimeVersion: 0, emissionKind: FullDebug, splitDebugInlining: false, nameTableKind: None)
 ; CHECK: [[META1]] = !DIFile(filename: "{{.*}}test2.c", directory: {{.*}})
-; CHECK: [[DBG9]] = distinct !DISubprogram(name: "foo", linkageName: "foo", scope: [[META1]], file: [[META1]], line: 2, type: [[META10:![0-9]+]], scopeLine: 2, flags: DIFlagArtificial, spFlags: DISPFlagDefinition, unit: [[META0]], retainedNodes: [[META19:![0-9]+]])
+; CHECK: [[DBG9]] = distinct !DISubprogram(name: "foo", scope: [[META1]], file: [[META1]], line: 2, type: [[META10:![0-9]+]], scopeLine: 2, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: [[META0]], declaration: [[META19:![0-9]+]], retainedNodes: [[META24:![0-9]+]], keyInstructions: true)
 ; CHECK: [[META10]] = !DISubroutineType(types: [[META11:![0-9]+]])
 ; CHECK: [[META11]] = !{[[META12:![0-9]+]], [[META13:![0-9]+]]}
 ; CHECK: [[META12]] = !DIBasicType(name: "long", size: 64, encoding: DW_ATE_signed)
@@ -80,23 +79,23 @@ attributes #0 = { mustprogress nofree norecurse nosync nounwind willreturn memor
 ; CHECK: [[META16]] = !DIDerivedType(tag: DW_TAG_member, name: "a", scope: [[META14]], file: [[META1]], line: 1, baseType: [[META12]], size: 64)
 ; CHECK: [[META17]] = !DIDerivedType(tag: DW_TAG_member, name: "b", scope: [[META14]], file: [[META1]], line: 1, baseType: [[META12]], size: 64, offset: 64)
 ; CHECK: [[META18]] = !DIDerivedType(tag: DW_TAG_member, name: "c", scope: [[META14]], file: [[META1]], line: 1, baseType: [[META12]], size: 64, offset: 128)
-; CHECK: [[META19]] = !{}
-; CHECK: [[META20]] = !DILocalVariable(name: "arg__0", arg: 1, scope: [[DBG9]], file: [[META1]], line: 2, type: [[META13]])
-; CHECK: [[META21]] = !DILocation(line: 0, scope: [[DBG9]])
-; CHECK: [[META22]] = !DILocalVariable(name: "arg", arg: 1, scope: [[META23:![0-9]+]], file: [[META1]], line: 2, type: [[META14]])
-; CHECK: [[META23]] = distinct !DISubprogram(name: "foo", scope: [[META1]], file: [[META1]], line: 2, type: [[META24:![0-9]+]], scopeLine: 2, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: [[META0]], retainedNodes: [[META26:![0-9]+]], keyInstructions: true)
-; CHECK: [[META24]] = !DISubroutineType(cc: DW_CC_normal, types: [[META25:![0-9]+]])
-; CHECK: [[META25]] = !{[[META12]], [[META14]]}
-; CHECK: [[META26]] = !{[[META22]]}
-; CHECK: [[META27]] = !DILocation(line: 2, column: 19, scope: [[META23]], inlinedAt: [[META21]])
-; CHECK: [[DBG28]] = !DILocation(line: 3, column: 14, scope: [[META23]], inlinedAt: [[META21]])
+; CHECK: [[META19]] = !DISubprogram(name: "foo", scope: [[META1]], file: [[META1]], line: 2, type: [[META20:![0-9]+]], scopeLine: 2, spFlags: 0, retainedNodes: [[META22:![0-9]+]])
+; CHECK: [[META20]] = !DISubroutineType(types: [[META21:![0-9]+]])
+; CHECK: [[META21]] = !{[[META12]], [[META14]]}
+; CHECK: [[META22]] = !{[[META23:![0-9]+]]}
+; CHECK: [[META23]] = !DILocalVariable(name: "arg", arg: 1, scope: [[META19]], file: [[META1]], line: 2, type: [[META14]])
+; CHECK: [[META24]] = !{[[META25:![0-9]+]]}
+; CHECK: [[META25]] = !DILocalVariable(name: "arg__0", arg: 1, scope: [[DBG9]], file: [[META1]], line: 2, type: [[META13]])
+; CHECK: [[META26]] = !DILocalVariable(name: "arg", arg: 1, scope: [[DBG9]], file: [[META1]], line: 2, type: [[META14]])
+; CHECK: [[META27]] = !DILocation(line: 2, column: 19, scope: [[DBG9]])
+; CHECK: [[DBG28]] = !DILocation(line: 3, column: 14, scope: [[DBG9]])
 ; CHECK: [[LONG_TBAA29]] = !{[[META30:![0-9]+]], [[META31:![0-9]+]], i64 0}
 ; CHECK: [[META30]] = !{!"t", [[META31]], i64 0, [[META31]], i64 8, [[META31]], i64 16}
 ; CHECK: [[META31]] = !{!"long", [[META32:![0-9]+]], i64 0}
 ; CHECK: [[META32]] = !{!"omnipotent char", [[META33:![0-9]+]], i64 0}
 ; CHECK: [[META33]] = !{!"Simple C/C++ TBAA"}
-; CHECK: [[DBG34]] = !DILocation(line: 3, column: 22, scope: [[META23]], inlinedAt: [[META21]])
+; CHECK: [[DBG34]] = !DILocation(line: 3, column: 22, scope: [[DBG9]])
 ; CHECK: [[LONG_TBAA35]] = !{[[META30]], [[META31]], i64 16}
-; CHECK: [[DBG36]] = !DILocation(line: 3, column: 16, scope: [[META23]], inlinedAt: [[META21]], atomGroup: 1, atomRank: 2)
-; CHECK: [[DBG37]] = !DILocation(line: 3, column: 3, scope: [[META23]], inlinedAt: [[META21]], atomGroup: 1, atomRank: 1)
+; CHECK: [[DBG36]] = !DILocation(line: 3, column: 16, scope: [[DBG9]], atomGroup: 1, atomRank: 2)
+; CHECK: [[DBG37]] = !DILocation(line: 3, column: 3, scope: [[DBG9]], atomGroup: 1, atomRank: 1)
 ;.
