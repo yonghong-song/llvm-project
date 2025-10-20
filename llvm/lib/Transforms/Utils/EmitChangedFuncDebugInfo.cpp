@@ -276,8 +276,8 @@ static void generateDebugInfo(Module &M, Function *F,
                                       ArgList, PointerBitWidth);
   if (!Success) {
     // Cannot decide a signature: mark the old one nocall and bail out.
-    auto Temp = OldSP->getType()->cloneWithCC(llvm::dwarf::DW_CC_nocall);
-    OldSP->replaceType(MDNode::replaceWithPermanent(std::move(Temp)));
+    // auto Temp = OldSP->getType()->cloneWithCC(llvm::dwarf::DW_CC_nocall);
+    // OldSP->replaceType(MDNode::replaceWithPermanent(std::move(Temp)));
     DIB.finalize();
     return;
   }
@@ -285,6 +285,8 @@ static void generateDebugInfo(Module &M, Function *F,
   if (OldSP->getName() != F->getName())
     OldSP->replaceLinkageName(MDString::get(Ctx, F->getName()));
 
+  auto Temp = OldSP->getType()->cloneWithCC(0);
+  OldSP->replaceType(MDNode::replaceWithPermanent(std::move(Temp)));
   DISubprogram *DeclSP = DIB.createFunction(
       OldSP->getScope(), OldSP->getName(), "", OldSP->getFile(),
       OldSP->getLine(), OldSP->getType(), OldSP->getScopeLine(),
@@ -314,6 +316,8 @@ static void generateDebugInfo(Module &M, Function *F,
   DITypeRefArray DITypeArray = DIB.getOrCreateTypeArray(TypeList);
   auto *SubroutineType = DIB.createSubroutineType(DITypeArray);
   OldSP->replaceType(SubroutineType);
+  Temp = OldSP->getType()->cloneWithCC(llvm::dwarf::DW_CC_nocall);
+  OldSP->replaceType(MDNode::replaceWithPermanent(std::move(Temp)));
 
   // Install retained nodes
   for (DINode *DN : OldSP->getRetainedNodes()) {
@@ -335,6 +339,7 @@ PreservedAnalyses EmitChangedFuncDebugInfoPass::run(Module &M,
   if (DisableChangedFuncDBInfo)
     return PreservedAnalyses::all();
 
+#if 0
   // C-only
   for (DICompileUnit *CU : M.debug_compile_units()) {
     auto L = CU->getSourceLanguage().getUnversionedName();
@@ -343,6 +348,7 @@ PreservedAnalyses EmitChangedFuncDebugInfoPass::run(Module &M,
         L != dwarf::DW_LANG_C17)
       return PreservedAnalyses::all();
   }
+#endif
 
   Triple T(M.getTargetTriple());
   if (T.isBPF()) // BPF: LLVM emits BTF; skip here for now.
@@ -389,10 +395,6 @@ PreservedAnalyses EmitChangedFuncDebugInfoPass::run(Module &M,
           continue;
       }
     }
-
-    // Reset CC to DW_CC_normal; we’ll mark the new SP as Artificial.
-    auto Temp = SP->getType()->cloneWithCC(0);
-    SP->replaceType(MDNode::replaceWithPermanent(std::move(Temp)));
 
     ChangedFuncs.push_back(&F);
   }
