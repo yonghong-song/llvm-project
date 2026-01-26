@@ -397,6 +397,7 @@ enum Kind {
   kw_importType,
   kw_definition,
   kw_declaration,
+  kw_renameOnPromotion,
   kw_function,
   kw_insts,
   kw_funcFlags,

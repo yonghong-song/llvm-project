@@ -1178,9 +1178,11 @@ static GlobalValueSummary::GVFlags getDecodedGVSummaryFlags(uint64_t RawFlags,
   bool Live = (RawFlags & 0x2) || Version < 3;
   bool Local = (RawFlags & 0x4);
   bool AutoHide = (RawFlags & 0x8);
+  bool RenameOnPromotion = (RawFlags & 0x20);
 
   return GlobalValueSummary::GVFlags(Linkage, Visibility, NotEligibleToImport,
-                                     Live, Local, AutoHide, IK);
+                                     Live, Local, AutoHide, IK,
+                                     RenameOnPromotion);
 }
 
 // Decode the flags for GlobalVariable in the summary

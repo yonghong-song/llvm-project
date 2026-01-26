@@ -471,7 +471,8 @@ void llvm::thinLTOResolvePrevailingInIndex(
 static void thinLTOInternalizeAndPromoteGUID(
     ValueInfo VI, function_ref<bool(StringRef, ValueInfo)> isExported,
     function_ref<bool(GlobalValue::GUID, const GlobalValueSummary *)>
-        isPrevailing) {
+        isPrevailing,
+    DenseSet<StringRef> &RenameOnPromotionGVs) {
   // Before performing index-based internalization and promotion for this GUID,
   // the local flag should be consistent with the summary list linkage types.
   VI.verifyLocal();
@@ -484,8 +485,16 @@ static void thinLTOInternalizeAndPromoteGUID(
     // First see if we need to promote an internal value because it is not
     // exported.
     if (isExported(S->modulePath(), VI)) {
-      if (GlobalValue::isLocalLinkage(S->linkage()))
+      if (GlobalValue::isLocalLinkage(S->linkage())) {
         S->setLinkage(GlobalValue::ExternalLinkage);
+        if (VI.hasName()) {
+          if (RenameOnPromotionGVs.find(VI.name()) ==
+              RenameOnPromotionGVs.end())
+            RenameOnPromotionGVs.insert(VI.name());
+          else
+            S->setRenameOnPromotion(true);
+        }
+      }
       continue;
     }
 
@@ -557,9 +566,10 @@ void llvm::thinLTOInternalizeAndPromoteInIndex(
     function_ref<bool(GlobalValue::GUID, const GlobalValueSummary *)>
         isPrevailing) {
   assert(!Index.withInternalizeAndPromote());
+  DenseSet<StringRef> RenameOnPromotionGVs;
   for (auto &I : Index)
     thinLTOInternalizeAndPromoteGUID(Index.getValueInfo(I), isExported,
-                                     isPrevailing);
+                                     isPrevailing, RenameOnPromotionGVs);
   Index.setWithInternalizeAndPromote();
 }
 
