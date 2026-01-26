@@ -72,6 +72,15 @@ bool ValueInfo::canAutoHide() const {
                       });
 }
 
+bool ValueInfo::renameOnPromotion() const {
+  // Can only promote name if any copy needs to promote name.
+  return getSummaryList().size() &&
+         llvm::all_of(getSummaryList(),
+                      [](const std::unique_ptr<GlobalValueSummary> &Summary) {
+                        return Summary->renameOnPromotion();
+                      });
+}
+
 // Gets the number of readonly and writeonly refs in RefEdgeList
 std::pair<unsigned, unsigned> FunctionSummary::specialRefCounts() const {
   // Here we take advantage of having all readonly and writeonly references
@@ -686,6 +695,8 @@ void ModuleSummaryIndex::exportToDot(
         A.addComment("definition");
       else if (Flags.ImportType == GlobalValueSummary::ImportKind::Declaration)
         A.addComment("declaration");
+      if (Flags.RenameOnPromotion)
+        A.addComment("renameOnPromotion");
       if (GUIDPreservedSymbols.count(SummaryIt.first))
         A.addComment("preserved");
 

@@ -54,8 +54,8 @@ attributes #0 = { mustprogress nofree norecurse nosync nounwind willreturn memor
 !22 = !DILocation(line: 4, column: 32, scope: !19)
 
 ^0 = module: (path: "hda_codec.o", hash: (1120894731, 3099354915, 309166549, 2100129435, 1932081428))
-^1 = gv: (name: "snd_hda_codec_shutdown", summaries: (function: (module: ^0, flags: (linkage: external, visibility: hidden, notEligibleToImport: 0, live: 0, dsoLocal: 1, canAutoHide: 0, importType: definition), insts: 1, funcFlags: (readNone: 1, readOnly: 0, noRecurse: 1, returnDoesNotAlias: 0, noInline: 0, alwaysInline: 0, noUnwind: 1, mayThrow: 0, hasUnknownCall: 0, mustBeUnreachable: 0)))) ; guid = 1539195202824839354
-^2 = gv: (name: "hda_set_power_state_codec", summaries: (variable: (module: ^0, flags: (linkage: external, visibility: hidden, notEligibleToImport: 0, live: 0, dsoLocal: 1, canAutoHide: 0, importType: definition), varFlags: (readonly: 1, writeonly: 1, constant: 0)))) ; guid = 10300548032946263328
+^1 = gv: (name: "snd_hda_codec_shutdown", summaries: (function: (module: ^0, flags: (linkage: external, visibility: hidden, notEligibleToImport: 0, live: 0, dsoLocal: 1, canAutoHide: 0, importType: definition, renameOnPromotion: 1), insts: 1, funcFlags: (readNone: 1, readOnly: 0, noRecurse: 1, returnDoesNotAlias: 0, noInline: 0, alwaysInline: 0, noUnwind: 1, mayThrow: 0, hasUnknownCall: 0, mustBeUnreachable: 0)))) ; guid = 1539195202824839354
+^2 = gv: (name: "hda_set_power_state_codec", summaries: (variable: (module: ^0, flags: (linkage: external, visibility: hidden, notEligibleToImport: 0, live: 0, dsoLocal: 1, canAutoHide: 0, importType: definition, renameOnPromotion: 1), varFlags: (readonly: 1, writeonly: 1, constant: 0)))) ; guid = 10300548032946263328
 ^3 = flags: 8
 ^4 = blockcount: 0
 

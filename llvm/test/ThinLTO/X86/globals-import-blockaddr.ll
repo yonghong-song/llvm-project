@@ -4,7 +4,7 @@
 ; RUN: llvm-dis %t3.1.3.import.bc -o - | FileCheck %s
 
 ; Verify that we haven't imported GV containing blockaddress
-; CHECK: @label_addr.llvm.0 = external hidden constant
+; CHECK: @label_addr = external hidden constant
 ; Verify that bar is not imported since it has address-taken block that is target of indirect branch
 ; CHECK: declare ptr @bar()
 ; Verify that foo is imported

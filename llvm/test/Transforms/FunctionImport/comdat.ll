@@ -14,13 +14,13 @@
 target datalayout = "e-m:w-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-windows-msvc19.0.24215"
 
-; CHECK: $lwt.llvm.[[HASH:[0-9]+]] = comdat any
+; CHECK: $lwt = comdat any
 $lwt = comdat any
 
-; CHECK: @lwt_aliasee = private unnamed_addr global {{.*}}, comdat($lwt.llvm.[[HASH]])
+; CHECK: @lwt_aliasee = private unnamed_addr global {{.*}}, comdat($lwt)
 @lwt_aliasee = private unnamed_addr global [1 x ptr] [ptr null], comdat($lwt)
 
-; CHECK: @lwt.llvm.[[HASH]] = hidden unnamed_addr alias
+; CHECK: @lwt = hidden unnamed_addr alias
 @lwt = internal unnamed_addr alias [1 x ptr], ptr @lwt_aliasee
 
 ; Below function should get imported into other module, resulting in @lwt being

@@ -471,7 +471,8 @@ void llvm::thinLTOResolvePrevailingInIndex(
 static void thinLTOInternalizeAndPromoteGUID(
     ValueInfo VI, function_ref<bool(StringRef, ValueInfo)> isExported,
     function_ref<bool(GlobalValue::GUID, const GlobalValueSummary *)>
-        isPrevailing) {
+        isPrevailing,
+    DenseSet<StringRef> &Globals) {
   // Before performing index-based internalization and promotion for this GUID,
   // the local flag should be consistent with the summary list linkage types.
   VI.verifyLocal();
@@ -480,12 +481,19 @@ static void thinLTOInternalizeAndPromoteGUID(
       VI.getSummaryList().size() == 1 &&
       !GlobalValue::isLocalLinkage(VI.getSummaryList().front()->linkage());
 
+  bool NameInGlobals = false;
   for (auto &S : VI.getSummaryList()) {
     // First see if we need to promote an internal value because it is not
     // exported.
     if (isExported(S->modulePath(), VI)) {
-      if (GlobalValue::isLocalLinkage(S->linkage()))
+      if (GlobalValue::isLocalLinkage(S->linkage())) {
         S->setLinkage(GlobalValue::ExternalLinkage);
+        if (!NameInGlobals) {
+          if (Globals.insert(VI.name()).second)
+            S->setRenameOnPromotion(false);
+          NameInGlobals = true;
+        }
+      }
       continue;
     }
 
@@ -555,12 +563,35 @@ void llvm::thinLTOInternalizeAndPromoteInIndex(
     ModuleSummaryIndex &Index,
     function_ref<bool(StringRef, ValueInfo)> isExported,
     function_ref<bool(GlobalValue::GUID, const GlobalValueSummary *)>
-        isPrevailing) {
+        isPrevailing,
+    DenseSet<StringRef> &Globals) {
   assert(!Index.withInternalizeAndPromote());
+
   for (auto &I : Index)
     thinLTOInternalizeAndPromoteGUID(Index.getValueInfo(I), isExported,
-                                     isPrevailing);
+                                     isPrevailing, Globals);
   Index.setWithInternalizeAndPromote();
+}
+
+void llvm::thinLTOGetGlobalsInIndex(ModuleSummaryIndex &Index,
+                                    DenseSet<StringRef> &Globals) {
+  for (auto &I : Index) {
+    ValueInfo VI = Index.getValueInfo(I);
+    if (Globals.contains(VI.name()))
+      continue;
+
+    for (const auto &Summary : VI.getSummaryList()) {
+      const GlobalValueSummary *Base = Summary->getBaseObject();
+      if (GlobalValue::isLocalLinkage(Base->linkage()))
+        continue;
+      if (!isa<FunctionSummary>(Base) && !isa<GlobalVarSummary>(Base) &&
+          !isa<AliasSummary>(Base))
+        continue;
+
+      Globals.insert(VI.name());
+      break;
+    }
+  }
 }
 
 // Requires a destructor for std::vector<InputModule>.
@@ -2008,9 +2039,10 @@ Error LTO::runThinLTO(AddStreamFn AddStream, FileCache Cache,
   // Perform index-based WPD. This will return immediately if there are
   // no index entries in the typeIdMetadata map (e.g. if we are instead
   // performing IR-based WPD in hybrid regular/thin LTO mode).
+  DenseSet<StringRef> Globals;
   std::map<ValueInfo, std::vector<VTableSlotSummary>> LocalWPDTargetsMap;
   runWholeProgramDevirtOnIndex(ThinLTO.CombinedIndex, ExportedGUIDs,
-                               LocalWPDTargetsMap);
+                               LocalWPDTargetsMap, Globals);
 
   auto isPrevailing = [&](GlobalValue::GUID GUID, const GlobalValueSummary *S) {
     return ThinLTO.isPrevailingModuleForGUID(GUID, S->modulePath());
@@ -2065,8 +2097,11 @@ Error LTO::runThinLTO(AddStreamFn AddStream, FileCache Cache,
   updateIndexWPDForExports(ThinLTO.CombinedIndex, isExported,
                            LocalWPDTargetsMap);
 
+  // Collect all global functions/variables/aliases.
+  thinLTOGetGlobalsInIndex(ThinLTO.CombinedIndex, Globals);
+
   thinLTOInternalizeAndPromoteInIndex(ThinLTO.CombinedIndex, isExported,
-                                      isPrevailing);
+                                      isPrevailing, Globals);
 
   auto recordNewLinkage = [&](StringRef ModuleIdentifier,
                               GlobalValue::GUID GUID,

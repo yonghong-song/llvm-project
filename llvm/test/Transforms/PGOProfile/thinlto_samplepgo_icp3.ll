@@ -10,7 +10,7 @@
 ; RUN: llvm-dis %t3.1.3.import.bc -o - | FileCheck %s --check-prefix=IMPORTS
 
 ; Make sure we import the promted indirectly called target
-; IMPORTS: void @_ZL3foov.llvm.0()
+; IMPORTS: void @_ZL3foov()
 
 ; RUN: llvm-dis %t3.2.4.opt.bc -o - | FileCheck %s --check-prefix=ICALL-PROM
 ; ICALL-PROM:   br i1 %{{[0-9]+}}, label %tailrecurse, label %if.false.orig_indirect,

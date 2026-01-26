@@ -68,7 +68,7 @@
 ; and noninterposable_f
 ;
 ; FIRST-LABEL:  @m1_f1
-; FIRST-LABEL:  @m1_f2.llvm.0
+; FIRST-LABEL:  @m1_f2
 ;
 ; @interposable_f is prevailing in m1, so it won't be imported
 ; FIRST-LABEL:  define void @interposable_f
@@ -90,7 +90,7 @@
 ; SECOND-LABEL: define weak_odr void @noninterposable_f
 ; SECOND-NEXT:  call void @m2_variant()
 ; SECOND-LABEL: @m1_f1
-; SECOND-LABEL: define available_externally hidden void @m1_f2.llvm.0
+; SECOND-LABEL: define available_externally hidden void @m1_f2
 ;
 ; we import @interposable_f from m1, the prevailing variant.
 ; SECOND-LABEL: define available_externally void @interposable_f

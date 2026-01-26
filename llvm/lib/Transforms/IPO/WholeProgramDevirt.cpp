@@ -774,6 +774,8 @@ struct DevirtIndex {
   // importing.
   std::map<ValueInfo, std::vector<VTableSlotSummary>> &LocalWPDTargetsMap;
 
+  DenseSet<StringRef> &Globals;
+
   MapVector<VTableSlotSummary, VTableSlotInfo> CallSlots;
 
   PatternList FunctionsToSkip;
@@ -781,9 +783,10 @@ struct DevirtIndex {
   DevirtIndex(
       ModuleSummaryIndex &ExportSummary,
       std::set<GlobalValue::GUID> &ExportedGUIDs,
-      std::map<ValueInfo, std::vector<VTableSlotSummary>> &LocalWPDTargetsMap)
+      std::map<ValueInfo, std::vector<VTableSlotSummary>> &LocalWPDTargetsMap,
+      DenseSet<StringRef> &Globals)
       : ExportSummary(ExportSummary), ExportedGUIDs(ExportedGUIDs),
-        LocalWPDTargetsMap(LocalWPDTargetsMap) {
+        LocalWPDTargetsMap(LocalWPDTargetsMap), Globals(Globals) {
     FunctionsToSkip.init(SkipFunctionNames);
   }
 
@@ -973,8 +976,9 @@ void llvm::updateVCallVisibilityInIndex(
 
 void llvm::runWholeProgramDevirtOnIndex(
     ModuleSummaryIndex &Summary, std::set<GlobalValue::GUID> &ExportedGUIDs,
-    std::map<ValueInfo, std::vector<VTableSlotSummary>> &LocalWPDTargetsMap) {
-  DevirtIndex(Summary, ExportedGUIDs, LocalWPDTargetsMap).run();
+    std::map<ValueInfo, std::vector<VTableSlotSummary>> &LocalWPDTargetsMap,
+    DenseSet<StringRef> &Globals) {
+  DevirtIndex(Summary, ExportedGUIDs, LocalWPDTargetsMap, Globals).run();
 }
 
 void llvm::updateIndexWPDForExports(
@@ -1429,6 +1433,7 @@ bool DevirtIndex::trySingleImplDevirt(MutableArrayRef<ValueInfo> TargetsForSlot,
   // step.
   Res->TheKind = WholeProgramDevirtResolution::SingleImpl;
   if (GlobalValue::isLocalLinkage(S->linkage())) {
+    Globals.insert(TheFn.name());
     if (IsExported)
       // If target is a local function and we are exporting it by
       // devirtualizing a call in another module, we need to record the

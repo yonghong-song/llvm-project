@@ -25,11 +25,11 @@
 ; RUN: llvm-dis %t-out-norefs.1.3.import.bc -o - | FileCheck %s --check-prefix=NOREFS
 
 ; Check that variable has been promoted in the source module
-; PROMOTE: @_ZL3Obj.llvm.{{.*}} = hidden constant %struct.S { i32 4, i32 8, ptr @val }
+; PROMOTE: @_ZL3Obj = hidden constant %struct.S { i32 4, i32 8, ptr @val }
 
 ; @outer is a write-only variable, so it's been converted to zeroinitializer.
 ; IMPORT:      @val = available_externally global i32 42
-; IMPORT-NEXT: @_ZL3Obj.llvm.{{.*}} = available_externally hidden constant %struct.S { i32 4, i32 8, ptr @val }
+; IMPORT-NEXT: @_ZL3Obj = available_externally hidden constant %struct.S { i32 4, i32 8, ptr @val }
 ; IMPORT-NEXT: @outer = internal local_unnamed_addr global %struct.Q zeroinitializer
 
 ; @outer is a write-only variable that's stored to once, so the store and the global can be removed.
@@ -39,7 +39,7 @@
 ; OPT-NEXT: entry:
 ; OPT-NEXT:   ret i32 12
 
-; NOREFS:      @_ZL3Obj.llvm.{{.*}} = external hidden constant %struct.S
+; NOREFS:      @_ZL3Obj = external hidden constant %struct.S
 ; NOREFS-NEXT: @outer = internal local_unnamed_addr global %struct.Q zeroinitializer
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"

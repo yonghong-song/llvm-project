@@ -704,11 +704,14 @@ void ThinLTOCodeGenerator::promote(Module &TheModule, ModuleSummaryIndex &Index,
                           ModuleToDefinedGVSummaries[ModuleIdentifier],
                           /*PropagateAttrs=*/false);
 
+  DenseSet<StringRef> Globals;
+  thinLTOGetGlobalsInIndex(Index, Globals);
+
   // Promote the exported values in the index, so that they are promoted
   // in the module.
   thinLTOInternalizeAndPromoteInIndex(
       Index, IsExported(ExportLists, GUIDPreservedSymbols),
-      IsPrevailing(PrevailingCopy));
+      IsPrevailing(PrevailingCopy), Globals);
 
   // FIXME Set ClearDSOLocalOnDeclarations.
   promoteModule(TheModule, Index, /*ClearDSOLocalOnDeclarations=*/false);
@@ -886,11 +889,14 @@ void ThinLTOCodeGenerator::internalize(Module &TheModule,
   resolvePrevailingInIndex(Index, ResolvedODR, GUIDPreservedSymbols,
                            PrevailingCopy);
 
+  DenseSet<StringRef> Globals;
+  thinLTOGetGlobalsInIndex(Index, Globals);
+
   // Promote the exported values in the index, so that they are promoted
   // in the module.
   thinLTOInternalizeAndPromoteInIndex(
       Index, IsExported(ExportLists, GUIDPreservedSymbols),
-      IsPrevailing(PrevailingCopy));
+      IsPrevailing(PrevailingCopy), Globals);
 
   // FIXME Set ClearDSOLocalOnDeclarations.
   promoteModule(TheModule, Index, /*ClearDSOLocalOnDeclarations=*/false);
@@ -1056,7 +1062,9 @@ void ThinLTOCodeGenerator::run() {
   // performing IR-based WPD in hybrid regular/thin LTO mode).
   std::map<ValueInfo, std::vector<VTableSlotSummary>> LocalWPDTargetsMap;
   std::set<GlobalValue::GUID> ExportedGUIDs;
-  runWholeProgramDevirtOnIndex(*Index, ExportedGUIDs, LocalWPDTargetsMap);
+  DenseSet<StringRef> Globals;
+  runWholeProgramDevirtOnIndex(*Index, ExportedGUIDs, LocalWPDTargetsMap,
+                               Globals);
   GUIDPreservedSymbols.insert_range(ExportedGUIDs);
 
   // Compute prevailing symbols
@@ -1088,9 +1096,12 @@ void ThinLTOCodeGenerator::run() {
   updateIndexWPDForExports(*Index,
                            IsExported(ExportLists, GUIDPreservedSymbols),
                            LocalWPDTargetsMap);
+
+  thinLTOGetGlobalsInIndex(*Index, Globals);
+
   thinLTOInternalizeAndPromoteInIndex(
       *Index, IsExported(ExportLists, GUIDPreservedSymbols),
-      IsPrevailing(PrevailingCopy));
+      IsPrevailing(PrevailingCopy), Globals);
 
   thinLTOPropagateFunctionAttrs(*Index, IsPrevailing(PrevailingCopy));
 
