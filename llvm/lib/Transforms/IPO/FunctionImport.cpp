@@ -423,7 +423,8 @@ class GlobalsImporter final {
 
   void
   onImportingSummaryImpl(const GlobalValueSummary &Summary,
-                         SmallVectorImpl<const GlobalVarSummary *> &Worklist) {
+                         SmallVectorImpl<const GlobalVarSummary *> &Worklist,
+                         DenseSet<StringRef> &FuncNameList) {
     for (const auto &VI : Summary.refs()) {
       if (!shouldImportGlobal(VI)) {
         LLVM_DEBUG(
@@ -441,8 +442,19 @@ class GlobalsImporter final {
         // based on profile information). Should we decide to handle them here,
         // we can refactor accordingly at that time.
         bool CanImportDecl = false;
-        if (!GVS ||
-            shouldSkipLocalInAnotherModule(GVS, VI.getSummaryList().size(),
+
+        if (!GVS) {
+          if (dyn_cast<FunctionSummary>(RefSummary.get())) {
+            StringRef FName = VI.name();
+            if (!FuncNameList.contains(FName))
+              FuncNameList.insert(FName);
+            else
+              RefSummary->setPromotingFuncName(true);
+          }
+          continue;
+        }
+
+        if (shouldSkipLocalInAnotherModule(GVS, VI.getSummaryList().size(),
                                            Summary.modulePath()) ||
             !Index.canImportGlobalVar(GVS, /* AnalyzeRefs */ true,
                                       CanImportDecl)) {
@@ -488,11 +500,12 @@ public:
         IsPrevailing(IsPrevailing), ImportList(ImportList),
         ExportLists(ExportLists) {}
 
-  void onImportingSummary(const GlobalValueSummary &Summary) {
+  void onImportingSummary(const GlobalValueSummary &Summary,
+                          DenseSet<StringRef> &FuncNameList) {
     SmallVector<const GlobalVarSummary *, 128> Worklist;
-    onImportingSummaryImpl(Summary, Worklist);
+    onImportingSummaryImpl(Summary, Worklist, FuncNameList);
     while (!Worklist.empty())
-      onImportingSummaryImpl(*Worklist.pop_back_val(), Worklist);
+      onImportingSummaryImpl(*Worklist.pop_back_val(), Worklist, FuncNameList);
   }
 };
 
@@ -505,7 +518,8 @@ class ModuleImportsManager {
       const GVSummaryMapTy &DefinedGVSummaries,
       SmallVectorImpl<EdgeInfo> &Worklist, GlobalsImporter &GVImporter,
       FunctionImporter::ImportMapTy &ImportList,
-      FunctionImporter::ImportThresholdsTy &ImportThresholds);
+      FunctionImporter::ImportThresholdsTy &ImportThresholds,
+      DenseSet<StringRef> &FuncNameList, bool InWorkList);
 
 protected:
   function_ref<bool(GlobalValue::GUID, const GlobalValueSummary *)>
@@ -578,6 +592,11 @@ class WorkloadImportsManager : public ModuleImportsManager {
     GlobalsImporter GVI(Index, DefinedGVSummaries, IsPrevailing, ImportList,
                         ExportLists);
     auto &ValueInfos = SetIter->second;
+
+    DenseSet<StringRef> FuncNameList;
+    for (auto &VI : llvm::make_early_inc_range(ValueInfos))
+      FuncNameList.insert(VI.name());
+
     for (auto &VI : llvm::make_early_inc_range(ValueInfos)) {
       auto It = DefinedGVSummaries.find(VI.getGUID());
       if (It != DefinedGVSummaries.end() &&
@@ -662,7 +681,7 @@ class WorkloadImportsManager : public ModuleImportsManager {
       LLVM_DEBUG(dbgs() << "[Workload][Including]" << VI.name() << " from "
                         << ExportingModule << " : " << VI.getGUID() << "\n");
       ImportList.addDefinition(ExportingModule, VI.getGUID());
-      GVI.onImportingSummary(*GVS);
+      GVI.onImportingSummary(*GVS, FuncNameList);
       if (ExportLists)
         (*ExportLists)[ExportingModule].insert(VI);
     }
@@ -874,13 +893,24 @@ void ModuleImportsManager::computeImportForFunction(
     const GVSummaryMapTy &DefinedGVSummaries,
     SmallVectorImpl<EdgeInfo> &Worklist, GlobalsImporter &GVImporter,
     FunctionImporter::ImportMapTy &ImportList,
-    FunctionImporter::ImportThresholdsTy &ImportThresholds) {
-  GVImporter.onImportingSummary(Summary);
+    FunctionImporter::ImportThresholdsTy &ImportThresholds,
+    DenseSet<StringRef> &FuncNameList, bool InWorkList) {
+  GVImporter.onImportingSummary(Summary, FuncNameList);
   static int ImportCount = 0;
   for (const auto &Edge : Summary.calls()) {
     ValueInfo VI = Edge.first;
     LLVM_DEBUG(dbgs() << " edge -> " << VI << " Threshold:" << Threshold
                       << "\n");
+
+    if (InWorkList) {
+      StringRef FName = VI.name();
+      if (!FuncNameList.contains(FName)) {
+        FuncNameList.insert(FName);
+      } else {
+        for (const auto &S : VI.getSummaryList())
+          S->setPromotingFuncName(true);
+      }
+    }
 
     if (ImportCutoff >= 0 && ImportCount >= ImportCutoff) {
       LLVM_DEBUG(dbgs() << "ignored! import-cutoff value of " << ImportCutoff
@@ -1068,15 +1098,14 @@ void ModuleImportsManager::computeImportForModule(
   GlobalsImporter GVI(Index, DefinedGVSummaries, IsPrevailing, ImportList,
                       ExportLists);
   FunctionImporter::ImportThresholdsTy ImportThresholds;
+  DenseSet<StringRef> FuncNameList;
+  using FnEntry = std::pair<ValueInfo, const FunctionSummary *>;
+  SmallVector<FnEntry, 128> DefinedLiveFuncs;
 
-  // Populate the worklist with the import for the functions in the current
-  // module
+  // Collect defined functions in this module
   for (const auto &GVSummary : DefinedGVSummaries) {
-#ifndef NDEBUG
-    // FIXME: Change the GVSummaryMapTy to hold ValueInfo instead of GUID
-    // so this map look up (and possibly others) can be avoided.
     auto VI = Index.getValueInfo(GVSummary.first);
-#endif
+
     if (!Index.isGlobalValueLive(GVSummary.second)) {
       LLVM_DEBUG(dbgs() << "Ignores Dead GUID: " << VI << "\n");
       continue;
@@ -1086,9 +1115,16 @@ void ModuleImportsManager::computeImportForModule(
     if (!FuncSummary)
       // Skip import for global variables
       continue;
+
+    FuncNameList.insert(VI.name());
+    DefinedLiveFuncs.emplace_back(VI, FuncSummary);
+  }
+
+  for (auto &[VI, FuncSummary] : DefinedLiveFuncs) {
     LLVM_DEBUG(dbgs() << "Initialize import for " << VI << "\n");
     computeImportForFunction(*FuncSummary, ImportInstrLimit, DefinedGVSummaries,
-                             Worklist, GVI, ImportList, ImportThresholds);
+                             Worklist, GVI, ImportList, ImportThresholds,
+                             FuncNameList, false);
   }
 
   // Process the newly imported functions and add callees to the worklist.
@@ -1099,7 +1135,8 @@ void ModuleImportsManager::computeImportForModule(
 
     if (auto *FS = dyn_cast<FunctionSummary>(Summary))
       computeImportForFunction(*FS, Threshold, DefinedGVSummaries, Worklist,
-                               GVI, ImportList, ImportThresholds);
+                               GVI, ImportList, ImportThresholds, FuncNameList,
+                               true);
   }
 
   // Print stats about functions considered but rejected for importing

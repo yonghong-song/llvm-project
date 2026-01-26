@@ -28,6 +28,10 @@ static cl::opt<bool> UseSourceFilenameForPromotedLocals(
              "This requires that the source filename has a unique name / "
              "path to avoid name collisions."));
 
+static cl::opt<bool> AlwaysPromoteImportedLocalFunctions(
+    "always-promote-imported-local-functions", cl::Hidden,
+    cl::desc("Always promote imported local functions."));
+
 cl::list<GlobalValue::GUID> MoveSymbolGUID(
     "thinlto-move-symbols",
     cl::desc(
@@ -309,7 +313,11 @@ void FunctionImportGlobalProcessing::processGlobalForThinLTO(GlobalValue &GV) {
   if (GV.hasLocalLinkage() && shouldPromoteLocalToGlobal(&GV, VI)) {
     // Save the original name string before we rename GV below.
     auto Name = GV.getName().str();
-    GV.setName(getPromotedName(&GV));
+    llvm::Function *Fn = llvm::dyn_cast<llvm::Function>(&GV);
+
+    if (!Fn || AlwaysPromoteImportedLocalFunctions || VI.promotingFuncName())
+      GV.setName(getPromotedName(&GV));
+
     GV.setLinkage(getLinkage(&GV, /* DoPromote */ true));
     assert(!GV.hasLocalLinkage());
     GV.setVisibility(GlobalValue::HiddenVisibility);

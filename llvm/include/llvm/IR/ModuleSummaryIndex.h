@@ -296,6 +296,8 @@ struct ValueInfo {
 
   /// Checks if all copies are eligible for auto-hiding (have flag set).
   LLVM_ABI bool canAutoHide() const;
+
+  LLVM_ABI bool promotingFuncName() const;
 };
 
 inline raw_ostream &operator<<(raw_ostream &OS, const ValueInfo &VI) {
@@ -536,15 +538,21 @@ public:
     /// summary. The value is interpreted as 'ImportKind' enum defined above.
     unsigned ImportType : 1;
 
+    /// This field is written by the ThinLTO prelink stage to decide whether
+    /// a particular static function should be promoted or not.
+    unsigned PromotingFuncName : 1;
+
     /// Convenience Constructors
     explicit GVFlags(GlobalValue::LinkageTypes Linkage,
                      GlobalValue::VisibilityTypes Visibility,
                      bool NotEligibleToImport, bool Live, bool IsLocal,
-                     bool CanAutoHide, ImportKind ImportType)
+                     bool CanAutoHide, ImportKind ImportType,
+                     bool PromotingFuncName)
         : Linkage(Linkage), Visibility(Visibility),
           NotEligibleToImport(NotEligibleToImport), Live(Live),
           DSOLocal(IsLocal), CanAutoHide(CanAutoHide),
-          ImportType(static_cast<unsigned>(ImportType)) {}
+          ImportType(static_cast<unsigned>(ImportType)),
+          PromotingFuncName(PromotingFuncName) {}
   };
 
 private:
@@ -637,6 +645,12 @@ public:
   }
 
   void setImportKind(ImportKind IK) { Flags.ImportType = IK; }
+
+  void setPromotingFuncName(bool PromotingFuncName) {
+    Flags.PromotingFuncName = PromotingFuncName;
+  }
+
+  bool promotingFuncName() const { return Flags.PromotingFuncName; }
 
   GlobalValueSummary::ImportKind importType() const {
     return static_cast<ImportKind>(Flags.ImportType);
@@ -906,7 +920,8 @@ public:
             GlobalValue::LinkageTypes::AvailableExternallyLinkage,
             GlobalValue::DefaultVisibility,
             /*NotEligibleToImport=*/true, /*Live=*/true, /*IsLocal=*/false,
-            /*CanAutoHide=*/false, GlobalValueSummary::ImportKind::Definition),
+            /*CanAutoHide=*/false, GlobalValueSummary::ImportKind::Definition,
+            /*PromotingFuncName=*/false),
         /*NumInsts=*/0, FunctionSummary::FFlags{}, SmallVector<ValueInfo, 0>(),
         std::move(Edges), std::vector<GlobalValue::GUID>(),
         std::vector<FunctionSummary::VFuncId>(),
