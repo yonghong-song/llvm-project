@@ -55,6 +55,8 @@ entry:
 ; CHECK-NEXT: .Ltmp[[LABEL_SB:.*]]:
 ; CHECK-NEXT: .Ltmp
 ; CHECK-NEXT:     r1 = *(s8 *)(r6 + 0)
+; CHECK-NEXT:     r0 = r0
+; CHECK-NEXT:     r0 = r0
 ; CHECK-NEXT:     .loc
 ; CHECK-NEXT: .Ltmp
 ; CHECK-NEXT:     call cs
@@ -63,6 +65,8 @@ entry:
 ; CHECK-NEXT: .Ltmp[[LABEL_SH:.*]]:
 ; CHECK-NEXT: .Ltmp
 ; CHECK-NEXT:     r1 = *(s16 *)(r6 + 2)
+; CHECK-NEXT:     r0 = r0
+; CHECK-NEXT:     r0 = r0
 ; CHECK-NEXT:     .loc
 ; CHECK-NEXT: .Ltmp
 ; CHECK-NEXT:     call cs
@@ -71,6 +75,8 @@ entry:
 ; CHECK-NEXT: .Ltmp[[LABEL_SW:.*]]:
 ; CHECK-NEXT: .Ltmp
 ; CHECK-NEXT:     r1 = *(s32 *)(r6 + 4)
+; CHECK-NEXT:     r0 = r0
+; CHECK-NEXT:     r0 = r0
 ; CHECK-NEXT:     .loc
 ; CHECK-NEXT: .Ltmp
 ; CHECK-NEXT:     call cs

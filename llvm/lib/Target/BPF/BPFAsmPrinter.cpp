@@ -183,13 +183,18 @@ void BPFAsmPrinter::emitInstruction(const MachineInstr *MI) {
   BPF_MC::verifyInstructionPredicates(MI->getOpcode(),
                                       getSubtargetInfo().getFeatureBits());
 
-  MCInst TmpInst;
+  MCInst TmpInst, TmpInst2;
+  bool TmpInst2Used = false;
 
-  if (!BTF || !BTF->InstLower(MI, TmpInst)) {
+  if (!BTF || !BTF->InstLower(MI, TmpInst, TmpInst2, &TmpInst2Used)) {
     BPFMCInstLower MCInstLowering(OutContext, *this);
     MCInstLowering.Lower(MI, TmpInst);
   }
   EmitToStreamer(*OutStreamer, TmpInst);
+  if (TmpInst2Used) {
+     EmitToStreamer(*OutStreamer, TmpInst2);
+     EmitToStreamer(*OutStreamer, TmpInst2);
+  }
 }
 
 MCSymbol *BPFAsmPrinter::getJTPublicSymbol(unsigned JTI) {

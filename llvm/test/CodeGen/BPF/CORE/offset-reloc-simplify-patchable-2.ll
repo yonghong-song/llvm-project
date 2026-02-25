@@ -65,6 +65,8 @@ entry:
 ; CHECK-NEXT: .Ltmp
 ; V2-NEXT:        r1 = *(u8 *)(r6 + 0)
 ; V4-NEXT:        w1 = *(u8 *)(r6 + 0)
+; CHECK-NEXT:     r0 = r0
+; CHECK-NEXT:     r0 = r0
 ; CHECK-NEXT:     .loc
 ; CHECK-NEXT: .Ltmp
 ; CHECK-NEXT:     call cu
@@ -74,6 +76,8 @@ entry:
 ; CHECK-NEXT: .Ltmp
 ; V2-NEXT:        r1 = *(u16 *)(r6 + 2)
 ; V4-NEXT:        w1 = *(u16 *)(r6 + 2)
+; CHECK-NEXT:     r0 = r0
+; CHECK-NEXT:     r0 = r0
 ; CHECK-NEXT:     .loc
 ; CHECK-NEXT: .Ltmp
 ; CHECK-NEXT:     call cu
@@ -83,6 +87,8 @@ entry:
 ; CHECK-NEXT: .Ltmp
 ; V2-NEXT:        r1 = *(u32 *)(r6 + 4)
 ; V4-NEXT:        w1 = *(u32 *)(r6 + 4)
+; CHECK-NEXT:     r0 = r0
+; CHECK-NEXT:     r0 = r0
 ; CHECK-NEXT:     .loc
 ; CHECK-NEXT: .Ltmp
 ; CHECK-NEXT:     call cu
@@ -91,6 +97,8 @@ entry:
 ; CHECK-NEXT: .Ltmp[[LABEL_UD:.*]]:
 ; CHECK-NEXT: .Ltmp
 ; CHECK-NEXT:     r1 = *(u64 *)(r6 + 8)
+; CHECK-NEXT:     r0 = r0
+; CHECK-NEXT:     r0 = r0
 ; CHECK-NEXT:     .loc
 ; CHECK-NEXT: .Ltmp
 ; CHECK-NEXT:     call cu

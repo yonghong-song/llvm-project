@@ -1645,7 +1645,8 @@ void BTFDebug::processGlobalInitializer(const Constant *C) {
 }
 
 /// Emit proper patchable instructions.
-bool BTFDebug::InstLower(const MachineInstr *MI, MCInst &OutMI) {
+bool BTFDebug::InstLower(const MachineInstr *MI, MCInst &OutMI, MCInst &OutMI2,
+                         bool *OutMI2Used) {
   if (MI->getOpcode() == BPF::LD_imm64) {
     const MachineOperand &MO = MI->getOperand(1);
     if (MO.isGlobal()) {
@@ -1685,6 +1686,14 @@ bool BTFDebug::InstLower(const MachineInstr *MI, MCInst &OutMI) {
           OutMI.addOperand(MCOperand::createReg(MI->getOperand(0).getReg()));
         OutMI.addOperand(MCOperand::createReg(MI->getOperand(2).getReg()));
         OutMI.addOperand(MCOperand::createImm(Imm));
+
+        // Put an empty slot in case that later relocation overflow.
+        if (MI->getOpcode() != BPF::CORE_SHIFT) {
+          *OutMI2Used = true;
+          OutMI2.setOpcode(BPF::MOV_rr);
+          OutMI2.addOperand(MCOperand::createReg(BPF::R0));
+          OutMI2.addOperand(MCOperand::createReg(BPF::R0));
+        }
         return true;
       }
     }

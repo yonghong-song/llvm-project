@@ -293,9 +293,21 @@ void BPFMISimplifyPatchable::processInst(MachineRegisterInfo *MRI,
     return;
   }
 
-  if (Opcode == BPF::ADD_rr)
-    checkADDrr(MRI, RelocOp, GVal);
-  else if (Opcode == BPF::SLL_rr)
+  if (Opcode == BPF::ADD_rr) {
+    // If the struct offset is greater than INT16_MAX, skip optimization.
+    StringRef AccessPattern = GVal->getName();
+    size_t FirstDollar = AccessPattern.find_first_of('$');
+    size_t FirstColon = AccessPattern.find_first_of(':');
+    size_t SecondColon = AccessPattern.find_first_of(':', FirstColon + 1);
+    StringRef PatchImmStr =
+        AccessPattern.substr(SecondColon + 1, FirstDollar - SecondColon);
+    int PatchImm = std::stoll(std::string(PatchImmStr));
+    if (PatchImm <= INT16_MAX)
+      checkADDrr(MRI, RelocOp, GVal);
+    return;
+  }
+
+  if (Opcode == BPF::SLL_rr)
     checkShift(MRI, *Inst->getParent(), RelocOp, GVal, BPF::SLL_ri);
   else if (Opcode == BPF::SRA_rr)
     checkShift(MRI, *Inst->getParent(), RelocOp, GVal, BPF::SRA_ri);

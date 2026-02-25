@@ -60,16 +60,22 @@ entry:
 ; CHECK-NEXT: .Ltmp
 ; V2-NEXT:            *(u8 *)(r1 + 0) = r2
 ; V4-NEXT:            *(u8 *)(r1 + 0) = w2
+; CHECK-NEXT:         r0 = r0
+; CHECK-NEXT:         r0 = r0
 ; CHECK-NEXT:         .loc
 ; CHECK-NEXT: .Ltmp[[LABEL_UH:.*]]:
 ; CHECK-NEXT: .Ltmp
 ; V2-NEXT:            *(u16 *)(r1 + 2) = r2
 ; V4-NEXT:            *(u16 *)(r1 + 2) = w2
+; CHECK-NEXT:         r0 = r0
+; CHECK-NEXT:         r0 = r0
 ; CHECK-NEXT:         .loc
 ; CHECK-NEXT: .Ltmp[[LABEL_UW:.*]]:
 ; CHECK-NEXT: .Ltmp
 ; V2-NEXT:            *(u32 *)(r1 + 4) = r2
 ; V4-NEXT:            *(u32 *)(r1 + 4) = w2
+; CHECK-NEXT:         r0 = r0
+; CHECK-NEXT:         r0 = r0
 ; CHECK-NEXT:         .loc
 ; CHECK-NEXT: .Ltmp[[LABEL_UD:.*]]:
 ; CHECK-NEXT: .Ltmp

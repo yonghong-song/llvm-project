@@ -406,7 +406,8 @@ public:
   BTFDebug(AsmPrinter *AP);
 
   ///
-  bool InstLower(const MachineInstr *MI, MCInst &OutMI);
+  bool InstLower(const MachineInstr *MI, MCInst &OutMI, MCInst &OutMI2,
+                 bool *OutMI2Used);
 
   /// Get the special array index type id.
   uint32_t getArrayIndexTypeId() {

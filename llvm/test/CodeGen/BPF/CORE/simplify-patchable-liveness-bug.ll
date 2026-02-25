@@ -41,6 +41,8 @@ entry:
 ; CHECK-NEXT: .Ltmp[[LABEL1:.*]]:
 ; CHECK-NEXT: .Ltmp
 ; CHECK-NEXT:         r[[#A:]] = *(u64 *)(r1 + 0)
+; CHECK-NEXT:         r0 = r0
+; CHECK-NEXT:         r0 = r0
 ; CHECK-NEXT:         .loc
 ; CHECK-NEXT: .Ltmp
 ; CHECK-NEXT:         *(u64 *)(r2 + 0) = r[[#A]]
@@ -48,6 +50,8 @@ entry:
 ; CHECK-NEXT: .Ltmp[[LABEL2:.*]]:
 ; CHECK-NEXT: .Ltmp
 ; CHECK-NEXT:         r[[#B:]] = *(u64 *)(r1 + 0)
+; CHECK-NEXT:         r0 = r0
+; CHECK-NEXT:         r0 = r0
 ; CHECK-NEXT: .Ltmp
 ; CHECK-NEXT: .Ltmp
 ; CHECK-NEXT:         .loc
