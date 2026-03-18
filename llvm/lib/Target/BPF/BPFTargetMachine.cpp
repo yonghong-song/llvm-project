@@ -12,6 +12,7 @@
 
 #include "BPFTargetMachine.h"
 #include "BPF.h"
+#include "BPFMachineFunctionInfo.h"
 #include "BPFTargetLoweringObjectFile.h"
 #include "BPFTargetTransformInfo.h"
 #include "MCTargetDesc/BPFMCAsmInfo.h"
@@ -208,4 +209,12 @@ bool BPFPassConfig::addRegBankSelect() {
 bool BPFPassConfig::addGlobalInstructionSelect() {
   addPass(new InstructionSelect(getOptLevel()));
   return false;
+}
+
+MachineFunctionInfo *BPFTargetMachine::createMachineFunctionInfo(
+    BumpPtrAllocator &Allocator,
+    const Function &F,
+    const TargetSubtargetInfo *STI) const {
+  return BPFMachineFunctionInfo::create<BPFMachineFunctionInfo>(
+      Allocator, F, static_cast<const BPFSubtarget *>(STI));
 }

@@ -45,6 +45,8 @@ static cl::opt<bool> Disable_load_acq_store_rel(
     cl::desc("Disable load-acquire and store-release insns"));
 static cl::opt<bool> Disable_gotox("disable-gotox", cl::Hidden, cl::init(false),
                                    cl::desc("Disable gotox insn"));
+static cl::opt<bool> Disable_ext_args("disable-ext-args", cl::Hidden, cl::init(false),
+                                      cl::desc("Disable ext-args insn"));
 
 void BPFSubtarget::anchor() {}
 
@@ -69,6 +71,7 @@ void BPFSubtarget::initializeEnvironment() {
   HasStoreImm = false;
   HasLoadAcqStoreRel = false;
   HasGotox = false;
+  HasExtArgs= false;
   AllowsMisalignedMemAccess = false;
 }
 
@@ -101,6 +104,7 @@ void BPFSubtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
     HasStoreImm = !Disable_StoreImm;
     HasLoadAcqStoreRel = !Disable_load_acq_store_rel;
     HasGotox = !Disable_gotox;
+    HasExtArgs = !Disable_ext_args;
     return;
   }
 }

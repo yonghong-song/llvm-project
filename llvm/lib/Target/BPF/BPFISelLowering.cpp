@@ -13,6 +13,7 @@
 
 #include "BPFISelLowering.h"
 #include "BPF.h"
+#include "BPFMachineFunctionInfo.h"
 #include "BPFSubtarget.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
@@ -396,7 +397,7 @@ SDValue BPFTargetLowering::LowerFormalArguments(
   CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
   CCInfo.AnalyzeFormalArguments(Ins, getHasAlu32() ? CC_BPF32 : CC_BPF64);
 
-  bool HasMemArgs = false;
+  short IncomingExtDepth = 0;
   for (size_t I = 0; I < ArgLocs.size(); ++I) {
     auto &VA = ArgLocs[I];
 
@@ -436,16 +437,53 @@ SDValue BPFTargetLowering::LowerFormalArguments(
 
         break;
       }
-    } else {
-      if (VA.isMemLoc())
-        HasMemArgs = true;
-      else
-        report_fatal_error("unhandled argument location");
-      InVals.push_back(DAG.getConstant(0, DL, VA.getLocVT()));
+      continue;
+    }
+
+    if (VA.isMemLoc()) {
+      IncomingExtDepth = VA.getLocMemOffset() + 8;
+      short Off = -IncomingExtDepth;
+
+      // Physical ext-arg slot is always 64-bit.
+      SDValue Ld = DAG.getNode(BPFISD::LOAD_STACK_ARG, DL,
+                               DAG.getVTList(MVT::i64, MVT::Other),
+                               Chain,
+                               DAG.getConstant(Off, DL, MVT::i64));
+
+      SDValue ArgValue = Ld.getValue(0);
+      Chain = Ld.getValue(1);
+
+      // Convert physical i64 slot to logical C argument type.
+      switch (VA.getLocInfo()) {
+      case CCValAssign::Full:
+        if (VA.getValVT() != MVT::i64)
+          ArgValue = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), ArgValue);
+        break;
+      case CCValAssign::SExt:
+        ArgValue = DAG.getNode(ISD::AssertSext, DL, MVT::i64, ArgValue,
+                               DAG.getValueType(VA.getValVT()));
+        ArgValue = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), ArgValue);
+        break;
+      case CCValAssign::ZExt:
+        ArgValue = DAG.getNode(ISD::AssertZext, DL, MVT::i64, ArgValue,
+                               DAG.getValueType(VA.getValVT()));
+        ArgValue = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), ArgValue);
+        break;
+      case CCValAssign::AExt:
+        ArgValue = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), ArgValue);
+        break;
+      default:
+        llvm_unreachable("unsupported loc info");
+      }
+
+      InVals.push_back(ArgValue);
+      continue;
     }
   }
-  if (HasMemArgs)
-    fail(DL, DAG, "stack arguments are not supported");
+
+  auto &BFI = *MF.getInfo<BPFMachineFunctionInfo>();
+  BFI.IncomingExtDepth = IncomingExtDepth;
+
   if (IsVarArg)
     fail(DL, DAG, "variadic functions are not supported");
   if (MF.getFunction().hasStructRetAttr())
@@ -453,8 +491,6 @@ SDValue BPFTargetLowering::LowerFormalArguments(
 
   return Chain;
 }
-
-const size_t BPFTargetLowering::MaxArgs = 5;
 
 static void resetRegMaskBit(const TargetRegisterInfo *TRI, uint32_t *RegMask,
                             MCRegister Reg) {
@@ -503,9 +539,6 @@ SDValue BPFTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
   unsigned NumBytes = CCInfo.getStackSize();
 
-  if (Outs.size() > MaxArgs)
-    fail(CLI.DL, DAG, "too many arguments", Callee);
-
   for (auto &Arg : Outs) {
     ISD::ArgFlagsTy Flags = Arg.Flags;
     if (!Flags.isByVal())
@@ -517,10 +550,12 @@ SDValue BPFTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   auto PtrVT = getPointerTy(MF.getDataLayout());
   Chain = DAG.getCALLSEQ_START(Chain, NumBytes, 0, CLI.DL);
 
-  SmallVector<std::pair<unsigned, SDValue>, MaxArgs> RegsToPass;
+  SmallVector<std::pair<unsigned, SDValue>, 16> RegsToPass;
+  auto &BFI = *MF.getInfo<BPFMachineFunctionInfo>();
+  short Base = BFI.IncomingExtDepth + 8;
 
   // Walk arg assignments
-  for (size_t i = 0; i < std::min(ArgLocs.size(), MaxArgs); ++i) {
+  for (size_t i = 0; i < OutVals.size(); ++i) {
     CCValAssign &VA = ArgLocs[i];
     SDValue &Arg = OutVals[i];
 
@@ -542,10 +577,38 @@ SDValue BPFTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     }
 
     // Push arguments into RegsToPass vector
-    if (VA.isRegLoc())
+    if (VA.isRegLoc()) {
       RegsToPass.push_back(std::make_pair(VA.getLocReg(), Arg));
-    else
-      report_fatal_error("stack arguments are not supported");
+      continue;
+    }
+
+    if (VA.isMemLoc()) {
+      short Offset = -(Base + VA.getLocMemOffset());
+      SDValue Off = DAG.getConstant(Offset, CLI.DL, MVT::i64);
+
+      if (VA.getValVT() != MVT::i64) {
+        switch (VA.getLocInfo()) {
+        case CCValAssign::SExt:
+          Arg = DAG.getNode(ISD::SIGN_EXTEND, CLI.DL, MVT::i64, Arg);
+          break;
+        case CCValAssign::ZExt:
+          Arg = DAG.getNode(ISD::ZERO_EXTEND, CLI.DL, MVT::i64, Arg);
+          break;
+        case CCValAssign::AExt:
+        case CCValAssign::Full:
+          Arg = DAG.getNode(ISD::ANY_EXTEND, CLI.DL, MVT::i64, Arg);
+          break;
+        default:
+          llvm_unreachable("unsupported loc info");
+        }
+      }
+
+      Chain = DAG.getNode(BPFISD::STORE_STACK_ARG, CLI.DL, MVT::Other,
+                          Chain, Off, Arg);
+      continue;
+    }
+
+    report_fatal_error("unhandled argument location");
   }
 
   SDValue InGlue;

@@ -43,6 +43,24 @@ def BPFcallseq_end  : SDNode<"ISD::CALLSEQ_END",   SDT_BPFCallSeqEnd,
                              [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
 def BPFbrcc         : SDNode<"BPFISD::BR_CC", SDT_BPFBrCC, [SDNPHasChain]>;
 
+def SDT_BPFLoadStackArg : SDTypeProfile<1, 1, [
+  SDTCisVT<0, i64>,  // result value
+  SDTCisVT<1, i64>   // explicit operand: offset
+]>;
+
+def SDT_BPFStoreStackArg : SDTypeProfile<0, 2, [
+  SDTCisVT<0, i64>,  // explicit operand 0: offset
+  SDTCisVT<1, i64>   // explicit operand 1: stored value
+]>;
+
+def BPFload_stack_arg : SDNode<"BPFISD::LOAD_STACK_ARG",
+                               SDT_BPFLoadStackArg,
+                               [SDNPHasChain, SDNPMayLoad]>;
+
+def BPFstore_stack_arg : SDNode<"BPFISD::STORE_STACK_ARG",
+                                SDT_BPFStoreStackArg,
+                                [SDNPHasChain, SDNPMayStore]>;
+
 def BPFselectcc     : SDNode<"BPFISD::SELECT_CC", SDT_BPFSelectCC>;
 def BPFWrapper      : SDNode<"BPFISD::Wrapper", SDT_BPFWrapper>;
 def BPFmemcpy       : SDNode<"BPFISD::MEMCPY", SDT_BPFMEMCPY,
@@ -60,6 +78,7 @@ def BPFNoBswap : Predicate<"!Subtarget->hasBswap()">;
 def BPFHasStoreImm : Predicate<"Subtarget->hasStoreImm()">;
 def BPFHasLoadAcqStoreRel : Predicate<"Subtarget->hasLoadAcqStoreRel()">;
 def BPFHasGotox : Predicate<"Subtarget->hasGotox()">;
+def BPFHasExtArgs : Predicate<"Subtarget->hasExtArgs()">;
 
 class ImmediateAsmOperand<string name> : AsmOperandClass {
   let Name = name;
@@ -298,6 +317,20 @@ let Predicates = [BPFHasGotox] in {
     def JX : JMP_IND<BPF_JA, "gotox", [(brind i64:$dst)]>;
   }
 }
+}
+
+let Predicates = [BPFHasExtArgs] in {
+  let hasSideEffects = 1, mayLoad = 1 in {
+    def LOAD_STACK_ARG_PSEUDO
+      : Pseudo<(outs GPR:$dst), (ins i64imm:$off),
+               "load_stack_arg\t$dst, $off", []>;
+  }
+
+  let hasSideEffects = 1, mayStore = 1 in {
+    def STORE_STACK_ARG_PSEUDO
+      : Pseudo<(outs), (ins i64imm:$off, GPR:$src),
+               "store_stack_arg\t$off, $src", []>;
+  }
 }
 
 // ALU instructions
