@@ -611,8 +611,11 @@ public:
 
   // l-values.
   Value *VisitDeclRefExpr(DeclRefExpr *E) {
-    if (CodeGenFunction::ConstantEmission Constant = CGF.tryEmitAsConstant(E))
-      return CGF.emitScalarConstant(Constant, E);
+    if (Value *V = CGF.EmitBPFPreservedEnumerator(E))
+      return V;
+    if (!CGF.containsBPFPreservedEnumerator(E))
+      if (CodeGenFunction::ConstantEmission Constant = CGF.tryEmitAsConstant(E))
+        return CGF.emitScalarConstant(Constant, E);
     return EmitLoadOfLValue(E);
   }
 
@@ -2147,7 +2150,10 @@ Value *ScalarExprEmitter::VisitConvertVectorExpr(ConvertVectorExpr *E) {
 }
 
 Value *ScalarExprEmitter::VisitMemberExpr(MemberExpr *E) {
-  if (CodeGenFunction::ConstantEmission Constant = CGF.tryEmitAsConstant(E)) {
+  if (CGF.containsBPFPreservedEnumerator(E)) {
+    // Do not constant fold.
+  } else if (CodeGenFunction::ConstantEmission Constant =
+                 CGF.tryEmitAsConstant(E)) {
     CGF.EmitIgnoredExpr(E->getBase());
     return CGF.emitScalarConstant(Constant, E);
   } else {
@@ -5998,11 +6004,16 @@ VisitAbstractConditionalOperator(const AbstractConditionalOperator *E) {
   // If this is a really simple expression (like x ? 4 : 5), emit this as a
   // select instead of as control flow.  We can only do this if it is cheap and
   // safe to evaluate the LHS and RHS unconditionally.
+  // A BPF enumerator that is relocated is a load of its relocation global in
+  // the backend. A select of two such loads may become a load from the
+  // selected global, which cannot be relocated, so use control flow.
   if (!llvm::EnableSingleByteCoverage &&
       CodeGenUtils::isCheapEnoughToEvaluateUnconditionally(lhsExpr,
                                                            CGF.getContext()) &&
       CodeGenUtils::isCheapEnoughToEvaluateUnconditionally(rhsExpr,
-                                                           CGF.getContext())) {
+                                                           CGF.getContext()) &&
+      !CGF.containsBPFPreservedEnumerator(lhsExpr) &&
+      !CGF.containsBPFPreservedEnumerator(rhsExpr)) {
     llvm::Value *CondV = CGF.EvaluateExprAsBool(condExpr);
     llvm::Value *StepV = Builder.CreateZExtOrBitCast(CondV, CGF.Int64Ty);
 
